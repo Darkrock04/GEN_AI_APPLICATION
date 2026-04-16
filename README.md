@@ -1,0 +1,149 @@
+# ⚡ SPARK AI — Multi-Agent RAG Application
+
+A production-grade, multi-agent AI assistant powered by **SiliconFlow Models**. Features intelligent task routing, document RAG, and quality validation — optimized for speed and free-tier deployment.
+
+**🔗 Live Demo:** [https://darkrock04-spark.hf.space/](https://darkrock04-spark.hf.space/)
+
+---
+
+## 📖 Project Overview
+
+SPARK AI is a robust Generative AI web application providing an advanced conversational interface. Unlike simple chatbots that rely on a single LLM, SPARK AI routes each request through a sophisticated, multi-agent pipeline powered by **SiliconFlow Models**. From intelligent task routing and creative generation to document-grounded RAG (Retrieval-Augmented Generation) and content safety validation, every agent is optimized for its specific role to deliver fast, highly accurate, and reliable responses.
+
+---
+
+## ✨ Features
+
+| Feature | Description |
+|---------|-------------|
+| 🧠 **Chat & Reason** | Multi-agent pipeline with automated planning, dynamic routing, and validation |
+| 📑 **Document RAG** | Upload PDFs/TXT — adaptive chunking, embedding, and intelligent retrieval |
+| 🔒 **Content Safety** | Two-stage security gate (keyword pre-filter + LLM fallback) |
+| ✅ **Quality Validation** | Consolidated relevance + factuality + coherence check |
+| ⚡ **Specialized Workers** | Different routing for coding, creative, and general tasks |
+| 🔄 **Session Memory** | Remembers your conversation within the current session |
+| 📊 **Pipeline Streaming** | Real-time visibility into each processing stage |
+
+---
+
+## 🏗️ Architecture
+
+<img width="1024" height="1536" alt="arch" src="https://github.com/user-attachments/assets/fce89528-ece8-4ff0-aed0-661073dd334b" />
+
+
+
+
+---
+
+## 🚀 Quick Start
+
+```bash
+# 1. Clone
+git clone https://github.com/YOUR_USERNAME/YOUR_REPO.git
+cd YOUR_REPO
+
+# 2. Install
+pip install -r requirements.txt
+
+# 3. Configure
+# Create a .env file and set SILICONFLOW_API_KEY
+
+# 4. Start backend
+uvicorn backend.main:app --reload
+
+# 5. Start frontend (new terminal)
+streamlit run frontend/app.py
+```
+
+---
+
+## 🤖 Models
+
+| Agent | Model | Purpose |
+|---|---|---|
+| Security | `Qwen/Qwen2.5-7B-Instruct` | Fast SAFE/UNSAFE classification |
+| Planner | `Qwen/Qwen2.5-7B-Instruct` | Task decomposition |
+| Router | `Qwen/Qwen2.5-7B-Instruct` | Classify: coding/creative/general |
+| Workers (×3) | `deepseek-ai/DeepSeek-V3` | Generate response |
+| Validator | `Qwen/Qwen2.5-7B-Instruct` | Quality check |
+| Evaluator | `deepseek-ai/DeepSeek-V3` | Polish & format |
+| Embeddings | `Qwen/Qwen3-Embedding-0.6B` | Document RAG vectors |
+
+All models accessed via SiliconFlow API.
+
+---
+
+## 📁 Project Structure
+
+```
+SPARK-AI/
+├── app.py                  # HF Spaces launcher (FastAPI + Streamlit)
+├── requirements.txt        # Python dependencies
+├── .env                    # Environment variables (gitignored)
+├── backend/
+│   ├── api_models.py       # Pydantic request/response schemas
+│   ├── llm_factory.py      # Model registry & LLM initialization
+│   ├── graph_agent.py      # LangGraph multi-agent pipeline (core)
+│   ├── vector_store.py     # ChromaDB RAG engine with adaptive chunking
+│   └── main.py             # FastAPI server & endpoints
+├── frontend/
+│   └── app.py              # Streamlit chat UI
+├── deploy/
+│   └── HUGGINGFACE_README_SNIPPET.md
+├── docs/                   # Detailed documentation
+└── chroma_db/              # Vector database (gitignored)
+```
+
+---
+
+
+
+## 📡 API Reference
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `GET` | `/health` | Backend health check |
+| `POST` | `/chat` | Synchronous chat (returns full response) |
+| `POST` | `/chat/stream` | Streaming chat (NDJSON, one event per pipeline node) |
+| `POST` | `/upload_doc` | Upload PDF/TXT for RAG |
+| `GET` | `/documents` | List uploaded documents |
+| `DELETE` | `/documents/{filename}` | Delete specific document |
+| `POST` | `/clear_session` | Wipe all data & start fresh |
+
+---
+
+
+## 🔧 Session & Memory Behavior
+
+- **Current session:** AI remembers your entire conversation (last 10 messages sent as context)
+- **Page reload / tab close:** Everything is cleared — no persistent storage
+- **Clear Session button:** Wipes chat history, uploaded documents, and vector store
+
+---
+
+## 📄 Document RAG Pipeline
+
+![Document RAG Pipeline](docs/images/rag_pipeline.png)
+
+| Document Size | Chunk Size | Overlap |
+|---|---|---|
+| ≤ 3 pages | 400 chars | 100 |
+| 4–10 pages | 600 chars | 150 |
+| 11–30 pages | 1000 chars | 200 |
+| 30+ pages | 1500 chars | 300 |
+
+---
+
+## 📚 Documentation
+
+See [`docs/`](docs/) for detailed documentation:
+
+1. [Project Overview](docs/01_Project_Overview.md)
+2. [Architecture & Workflow](docs/02_Architecture_and_Workflow.md)
+3. [Models & Agents](docs/03_Models_and_Agents.md)
+4. [Technical Modules](docs/04_Technical_Modules.md)
+5. [RAG Concepts](docs/05_RAG_Concepts.md)
+6. [Features Deep Dive](docs/06_Features_Deep_Dive.md)
+7. [API Reference](docs/07_API_Reference.md)
+
+
