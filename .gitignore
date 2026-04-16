@@ -1,0 +1,48 @@
+# Python
+venv/
+.venv/
+env/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Secrets (NEVER commit API keys!)
+.env
+
+# Database & User Data
+chroma_db/
+data/
+*.db
+*.sqlite3
+
+# IDE & OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+*~
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+
+# Logs & temp
+*.log
+*.tmp
+*.bak
+
+# Streamlit
+.streamlit/
+
+# Hugging Face cache
+.huggingface/
+.cache/
+
+# Node (if any)
+node_modules/
