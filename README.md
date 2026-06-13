@@ -22,52 +22,8 @@ A production-grade, multi-agent AI assistant powered by **SiliconFlow Models**. 
 
 ## 🏗️ Architecture
 
-```
-User Message
-    │
-    ▼
-┌─────────────────────────────────┐
-│  SECURITY GATE                  │
-│  Stage 1: Keyword filter (free) │
-│  Stage 2: LLM check (if needed) │
-└──────┬──────────┬───────────────┘
-       │          │
-    UNSAFE     SAFE
-       │          │
-       ▼          ├── Simple greeting? → Quick Response → [END]
-   [BLOCKED]      │
-                  ▼
-             ┌─────────┐
-             │ PLANNER  │  Break into 2-4 steps
-             └────┬─────┘
-                  ▼
-             ┌──────────┐
-             │ RETRIEVER │  ChromaDB similarity search
-             └────┬──────┘
-                  ▼
-             ┌────────┐
-             │ ROUTER  │  coding / creative / general
-             └──┬──┬──┬┘
-                │  │  │
-                ▼  ▼  ▼
-         ┌────────────────┐
-         │ WORKER (typed) │  Specialized prompt + model
-         └───────┬────────┘
-                 ▼
-         ┌──────────────┐
-         │  VALIDATOR    │  Single consolidated check
-         │  (1 LLM call) │  relevance + factuality + coherence
-         └──────┬────┬───┘
-                │    │
-             PASS   FAIL (max 1 retry)
-                │    └──→ WORKER
-                ▼
-         ┌──────────────┐
-         │  EVALUATOR    │  Polish & format (long responses only)
-         └──────┬───────┘
-                ▼
-          Final Response
-```
+<img width="1024" height="1536" alt="arch" src="https://github.com/user-attachments/assets/fce89528-ece8-4ff0-aed0-661073dd334b" />
+
 
 ### LLM Calls Per Request
 
