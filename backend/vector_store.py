@@ -38,6 +38,7 @@ def _get_embeddings():
         base_url=NVIDIA_BASE_URL,
         model=embed_model,
         check_embedding_ctx_length=False,
+        model_kwargs={"extra_body": {"input_type": "query"}}
     )
 
 
