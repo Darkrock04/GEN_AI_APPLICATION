@@ -1,46 +1,45 @@
-# 03 — Models & Agent Roles
+# 03 — Models & Agent Roles (Multi-Cloud Architecture)
 
 ## Why Multiple Models?
 
-SPARK AI uses **specialized model assignments** instead of one general-purpose model. Lightweight 7B models handle classification tasks (fast, cheap), while the large models (like DeepSeek-V3) handle generation (high quality).
+SPARK AI uses a **Multi-Cloud Mixture of Agents**. Instead of relying on a single provider and hitting their arbitrary free-tier bottlenecks, we distribute the workload across three different tech giants. Each agent is routed to the specific cloud provider that offers the best free-tier advantage for that exact task.
 
-## Model Assignment Table
+## Multi-Cloud Assignments
 
-| Agent | Model | Why This Model? |
-|---|---|---|
-| **Security Gate** | `Qwen/Qwen2.5-7B-Instruct` | Fast binary SAFE/UNSAFE classification |
-| **Planner** | `Qwen/Qwen2.5-7B-Instruct` | Task decomposition needs reasoning |
-| **Router** | `Qwen/Qwen2.5-7B-Instruct` | Simple 3-way classification |
-| **Worker (General)** | `deepseek-ai/DeepSeek-V3` | Best overall for analysis, Q&A |
-| **Worker (Coding)** | `deepseek-ai/DeepSeek-V3` | Code generation |
-| **Worker (Creative)** | `deepseek-ai/DeepSeek-V3` | Creative writing |
-| **Validator** | `Qwen/Qwen2.5-7B-Instruct` | Quality assessment |
-| **Evaluator** | `deepseek-ai/DeepSeek-V3` | Final polish and formatting |
-| **Embeddings** | `Qwen/Qwen3-Embedding-0.6B` | Document RAG vectors |
+| Agent | Cloud Provider | Model | Why This Assignment? |
+|---|---|---|---|
+| **Security Gate** | **Nvidia NIM** | `meta/llama-3.1-8b-instruct` | Fast logic checking. |
+| **Planner** | **Google (Gemini)** | `gemini-3.1-flash-lite` | Strong reasoning, 15 RPM, 500 requests per day. |
+| **Router** | **Cerebras** | `gemma-4-31b` | Instant classification on Cerebras. |
+| `worker_general` | **Cerebras** | `gpt-oss-120b` | Massive generation. Takes advantage of Cerebras's 1,000,000 TPD allowance. |
+| `worker_creative` | **Cerebras** | `gpt-oss-120b` | High generation capabilities without hitting daily limits. |
+| `worker_coding` | **Google (Gemini)** | `gemini-3.5-flash` | Best coding model available on the free tier with 250K TPM. |
+| **Validator** | **Google (Gemini)** | `gemini-3.1-flash-lite` | Fast validation pass with huge 500 daily requests limit. |
+| **Evaluator** | **Nvidia NIM** | `meta/llama-3.1-70b-instruct`| Perfect for final text polish. |
+| **Embeddings** | **Nvidia NIM** | `nv-embedqa-e5-v5` | Enterprise-grade RAG embeddings. |
 
-## API Access
+---
 
-All models are accessed through the SiliconFlow API:
-- **Endpoint:** `https://api.siliconflow.cn/v1`
-- **Auth:** Bearer token via `SILICONFLOW_API_KEY`
-- **Provider setup:** `LLM_PROVIDER=siliconflow`
+## Free Tier Rate Limits (2026 Reference Guide)
 
-## Configuration
+To ensure SPARK AI runs completely for free, we engineered it around the following constraints:
 
-- Each `ChatOpenAI` instance has `timeout=45` and `max_retries=1`
-- Security and Router use 7B model with `max_tokens=64` and `32` respectively
-- Workers use `max_tokens=4096` for full responses
+### 1. Cerebras Inference
+- **Requests Per Minute (RPM):** 30
+- **Tokens Per Day (TPD):** 1,000,000
+- *Our Usage:* 1 request per message (Workers). We heavily utilize their massive 1M daily token allowance for generating huge walls of text.
 
-## How to Change Models
+### 2. Google AI Studio (Gemini)
+- **Requests Per Minute (RPM):** 15
+- **Tokens Per Minute (TPM):** 250,000
+- *Our Usage:* Used exclusively for heavy coding tasks. The generous 15 RPM is perfect since this node is only called occasionally.
 
-Edit `backend/llm_factory.py` — the `SILICONFLOW_MODELS` dictionary:
+### 3. Nvidia NIM
+- **Requests Per Minute (RPM):** ~40
+- *Our Usage:* Used for evaluation and embeddings, staying comfortably beneath the limit.
 
-```python
-SILICONFLOW_MODELS = {
-    "security": "Qwen/Qwen2.5-7B-Instruct",
-    "planner": "Qwen/Qwen2.5-7B-Instruct",
-    ...
-}
-```
-
-Browse available models on the SiliconFlow documentation.
+## API Keys
+To run this architecture, you must configure the following `.env` variables:
+- `CEREBRAS_API_KEY`
+- `GEMINI_API_KEY`
+- `NVIDIA_API_KEY`
