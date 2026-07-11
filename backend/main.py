@@ -89,7 +89,7 @@ async def health_check():
 
     return {
         "status": "ok",
-        "llm_provider": "nvidia",
+        "llm_provider": "multi-cloud",
         "uptime": f"{hours}h {minutes}m {seconds}s",
         "uptime_seconds": uptime_seconds,
         "vector_store": vs_status,
