@@ -1,6 +1,6 @@
 # ⚡ SPARK AI — Multi-Agent RAG Application
 
-A production-grade, multi-agent AI assistant powered by **SiliconFlow Models**. Features intelligent task routing, document RAG, and quality validation — optimized for speed and free-tier deployment.
+A production-grade, multi-agent AI assistant powered by a **Multi-Cloud Architecture** (Nvidia NIM, Google Gemini, and Cerebras). Features intelligent task routing, document RAG, and quality validation — optimized for speed and free-tier deployment.
 
 **🔗 Live Demo:** [https://darkrock04-spark.hf.space/](https://darkrock04-spark.hf.space/)
 
@@ -8,7 +8,7 @@ A production-grade, multi-agent AI assistant powered by **SiliconFlow Models**. 
 
 ## 📖 Project Overview
 
-SPARK AI is a robust Generative AI web application providing an advanced conversational interface. Unlike simple chatbots that rely on a single LLM, SPARK AI routes each request through a sophisticated, multi-agent pipeline powered by **SiliconFlow Models**. From intelligent task routing and creative generation to document-grounded RAG (Retrieval-Augmented Generation) and content safety validation, every agent is optimized for its specific role to deliver fast, highly accurate, and reliable responses.
+SPARK AI is a robust Generative AI web application providing an advanced conversational interface. Unlike simple chatbots that rely on a single LLM, SPARK AI routes each request through a sophisticated, multi-agent pipeline powered by a **Multi-Cloud Architecture**. From intelligent task routing and creative generation to document-grounded RAG (Retrieval-Augmented Generation) and content safety validation, every agent is optimized for its specific role to deliver fast, highly accurate, and reliable responses.
 
 ---
 
@@ -26,9 +26,7 @@ SPARK AI is a robust Generative AI web application providing an advanced convers
 
 ---
 
-## 🏗️ Architecture
-
-<img width="1024" height="1536" alt="arch" src="https://github.com/user-attachments/assets/fce89528-ece8-4ff0-aed0-661073dd334b" />
+<img width="1024" alt="arch" src="docs/images/architecture_v2.png" />
 
 
 
@@ -45,8 +43,11 @@ cd YOUR_REPO
 # 2. Install
 pip install -r requirements.txt
 
-# 3. Configure
-# Create a .env file and set SILICONFLOW_API_KEY
+# 3. Configure API Keys
+# Create a .env file and set the following keys:
+# NVIDIA_API_KEY=your_key_here
+# CEREBRAS_API_KEY=your_key_here
+# GEMINI_API_KEY=your_key_here
 
 # 4. Start backend
 uvicorn backend.main:app --reload
@@ -59,17 +60,19 @@ streamlit run frontend/app.py
 
 ## 🤖 Models
 
-| Agent | Model | Purpose |
-|---|---|---|
-| Security | `Qwen/Qwen2.5-7B-Instruct` | Fast SAFE/UNSAFE classification |
-| Planner | `Qwen/Qwen2.5-7B-Instruct` | Task decomposition |
-| Router | `Qwen/Qwen2.5-7B-Instruct` | Classify: coding/creative/general |
-| Workers (×3) | `deepseek-ai/DeepSeek-V3` | Generate response |
-| Validator | `Qwen/Qwen2.5-7B-Instruct` | Quality check |
-| Evaluator | `deepseek-ai/DeepSeek-V3` | Polish & format |
-| Embeddings | `Qwen/Qwen3-Embedding-0.6B` | Document RAG vectors |
+| Agent | Provider | Model | Purpose |
+|---|---|---|---|
+| Security | **Nvidia NIM** | `meta/llama-3.1-8b-instruct` | Fast SAFE/UNSAFE classification |
+| Planner | **Google** | `gemini-3.1-flash-lite` | Task decomposition |
+| Router | **Cerebras** | `gemma-4-31b` | Classify: coding/creative/general |
+| Worker (General) | **Cerebras** | `gpt-oss-120b` | General generation |
+| Worker (Creative) | **Cerebras** | `gpt-oss-120b` | Creative writing |
+| Worker (Coding) | **Google** | `gemini-3.5-flash` | Code generation |
+| Validator | **Google** | `gemini-3.1-flash-lite` | Quality check |
+| Evaluator | **Nvidia NIM** | `meta/llama-3.1-70b-instruct` | Polish & format |
+| Embeddings | **Nvidia NIM** | `nvidia/nv-embedqa-e5-v5` | Document RAG vectors |
 
-All models accessed via SiliconFlow API.
+All models accessed via their respective free-tier/trial APIs.
 
 ---
 
