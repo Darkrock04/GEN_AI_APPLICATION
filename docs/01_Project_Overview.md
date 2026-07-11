@@ -2,7 +2,7 @@
 
 ## What is SPARK AI?
 
-SPARK AI is a production-grade, multi-agent Generative AI web application that provides an advanced conversational interface powered by **SiliconFlow Models**. Unlike simple chatbots that use a single LLM for everything, this system routes each request through a sophisticated pipeline of specialized agents — each optimized for its specific role.
+SPARK AI is a production-grade, multi-agent Generative AI web application that provides an advanced conversational interface powered by a **Multi-Cloud Architecture** (Nvidia NIM, Google Gemini, and Cerebras). Unlike simple chatbots that use a single LLM for everything, this system routes each request through a sophisticated pipeline of specialized agents — each optimized for its specific role.
 
 ## Key Capabilities
 
@@ -19,8 +19,8 @@ SPARK AI is a production-grade, multi-agent Generative AI web application that p
 |---|---|
 | **Frontend** | Streamlit (Python) |
 | **Backend API** | FastAPI, LangGraph, LangChain |
-| **LLM Provider** | SiliconFlow (Qwen/DeepSeek family) |
-| **Embeddings** | `Qwen/Qwen3-Embedding-0.6B` |
+| **LLM Provider** | Multi-Cloud (Nvidia NIM, Google Gemini, Cerebras) |
+| **Embeddings** | Nvidia (`nvidia/nv-embedqa-e5-v5`) |
 | **Vector Database** | ChromaDB (local, ephemeral per session) |
 
 ## Project Structure
