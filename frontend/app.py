@@ -235,6 +235,7 @@ NODE_LABELS = {
     "stress_test": "🔒 Security",
     "simple_answer": "💬 Reply",
     "planner": "📋 Planning",
+    "web_search": "🌐 Web Search",
     "retrieve": "🔍 Retrieval",
     "router": "🔀 Routing",
     "worker": "✍️ Generating",
@@ -243,7 +244,7 @@ NODE_LABELS = {
     "error": "❌ Error",
 }
 
-PIPELINE_STEPS = ["stress_test", "planner", "retrieve", "router", "worker", "validation", "evaluation"]
+PIPELINE_STEPS = ["stress_test", "planner", "web_search", "retrieve", "router", "worker", "validation", "evaluation"]
 
 
 def _backend_alive() -> bool:
@@ -540,21 +541,15 @@ if prompt := st.chat_input("Message SPARK AI..."):
                                 stepper_html = _render_pipeline_stepper(completed_nodes, active_node)
                                 stepper_container.markdown(stepper_html, unsafe_allow_html=True)
 
-                                # Show live preview of draft
-                                preview = (
-                                    (acc.get("final_response") or "").strip()
-                                    or (acc.get("draft") or "").strip()
-                                )
+                                # Show live preview only when final_response is available
+                                preview = (acc.get("final_response") or "").strip()
                                 if preview:
                                     stream_out.markdown(preview)
                                     bot_response = preview
                                     st.session_state.messages[-1]["content"] = bot_response
 
                             # Final update
-                            bot_response = (
-                                (acc.get("final_response") or "").strip()
-                                or (acc.get("draft") or "").strip()
-                            )
+                            bot_response = (acc.get("final_response") or "").strip()
                             if not bot_response:
                                 bot_response = "I couldn't generate a response. Please try again."
 
