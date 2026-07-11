@@ -12,7 +12,16 @@ Health check to verify backend is running.
 
 **Response:**
 ```json
-{"status": "ok", "llm_provider": "siliconflow"}
+{
+    "status": "ok",
+    "llm_provider": "multi-cloud",
+    "uptime": "1h 15m 30s",
+    "uptime_seconds": 4530,
+    "vector_store": "healthy",
+    "total_chunks_indexed": 42,
+    "total_documents": 1,
+    "version": "5.0"
+}
 ```
 
 ---
@@ -40,7 +49,10 @@ Main conversation endpoint. Synchronous, returns the full response.
 ```json
 {
     "response": "Machine learning is a subset of AI that...",
-    "status": "success"
+    "status": "success",
+    "sources": [],
+    "token_usage": null,
+    "response_time_ms": 1542
 }
 ```
 
@@ -111,4 +123,42 @@ Clear all documents, vectors, and uploaded files. Automatically called when a ne
 **Response:**
 ```json
 {"status": "success", "message": "Session cleared."}
+```
+
+---
+
+## `GET /analytics`
+Retrieve session-level analytics.
+
+**Response:**
+```json
+{
+    "messages_sent": 5,
+    "messages_received": 5,
+    "documents_uploaded": 1,
+    "total_tokens_used": 0,
+    "avg_response_time_ms": 12500
+}
+```
+
+---
+
+## `POST /export_chat`
+Export the current chat history as a formatted Markdown string.
+
+**Request Body:**
+```json
+{
+    "messages": [
+        {"role": "user", "content": "Hello"},
+        {"role": "assistant", "content": "Hi! How can I help?"}
+    ]
+}
+```
+
+**Response:**
+```json
+{
+    "content": "# SPARK AI Chat Export\n\n**User (10:00 AM)**\nHello\n\n..."
+}
 ```
