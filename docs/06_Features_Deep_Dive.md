@@ -1,20 +1,21 @@
 # 06 — Features Deep Dive
 
-## 1. Multi-Turn Conversation Memory
+## 1. Semantic Summarization Memory
 
-The frontend sends the **last 10 messages** with every request. The backend formats them as:
-```
-User: What is RAG?
-Assistant: RAG stands for Retrieval-Augmented Generation...
-User: How does it differ from fine-tuning?
-```
+To prevent context window overflow during long conversations, the system uses a **Semantic Summarization** engine:
+- The frontend sends the full history array.
+- If the history exceeds **6 messages**, a lightning-fast background LLM (e.g., Llama 3.1 8B) compresses all older messages into a dense semantic summary.
+- It actively extracts user preferences, names, and unresolved facts.
+- The 6 most recent messages are kept perfectly intact below the summary.
 
-This context is injected into the worker prompt, allowing the AI to:
-- Answer follow-up questions ("Tell me more about that")
-- Remember user-provided information ("My name is Rock")
-- Reference previous answers
+This guarantees the model remembers core context infinitely without crashing due to token limits.
 
-**Important:** Memory exists only for the current browser session. Reloading the page clears everything.
+## 1.5. Live Web Search (SearXNG)
+
+The agent has direct access to the live internet:
+- The **Planner Node** scans the user's query. If it detects a need for live data (news, current events), it flags `needs_web_search`.
+- The graph routes to the **Web Search Node**, which silently queries a self-hosted SearXNG instance.
+- The returned web snippets and URLs are injected into the context window, giving the LLM live knowledge far beyond its original training cutoff.
 
 ## 2. Consolidated Validation (Single LLM Call)
 
