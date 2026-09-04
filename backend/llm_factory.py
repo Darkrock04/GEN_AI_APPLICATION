@@ -8,27 +8,27 @@ load_dotenv(override=True)
 
 # MULTI-CLOUD ARCHITECTURE ASSIGNMENTS
 # ------------------------------------
-# Cerebras: Massive Daily Limit (Perfect for large generation nodes)
+# Ollama: Free cloud models (Router: gemma4:31b, Workers: gpt-oss:120b)
 # Google: Excellent context and RPM (Perfect for heavy coding)
 # Nvidia: Final evaluator / embeddings
 
 AGENT_CONFIG = {
-    "security":        {"provider": "nvidia",   "model": "meta/llama-3.1-8b-instruct"},
+    "security":        {"provider": "ollama",   "model": "nemotron-3-nano:30b"},
     "planner":         {"provider": "google",   "model": "gemini-3.1-flash-lite"},
-    "router":          {"provider": "cerebras", "model": "gemma-4-31b"},
-    "worker_general":  {"provider": "cerebras", "model": "gpt-oss-120b"},
-    "worker_creative": {"provider": "cerebras", "model": "gpt-oss-120b"},
+    "router":          {"provider": "ollama",   "model": "gemma4:31b"},
+    "worker_general":  {"provider": "ollama",   "model": "gpt-oss:120b"},
+    "worker_creative": {"provider": "ollama",   "model": "gpt-oss:120b"},
     "worker_coding":   {"provider": "google",   "model": "gemini-3.5-flash"}, 
     "validator":       {"provider": "google",   "model": "gemini-3.1-flash-lite"},
-    "evaluator":       {"provider": "nvidia",   "model": "meta/llama-3.1-70b-instruct"},
+    "evaluator":       {"provider": "ollama",   "model": "nemotron-3-super"},
 }
 
 # API URLs
-CEREBRAS_BASE_URL = os.getenv("CEREBRAS_BASE_URL", "https://api.cerebras.ai/v1")
+OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "https://ollama.com/v1")
 NVIDIA_BASE_URL = os.getenv("NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1")
 
 # API Keys
-CEREBRAS_API_KEY = os.getenv("CEREBRAS_API_KEY")
+OLLAMA_API_KEY = os.getenv("OLLAMA_API_KEY")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 NVIDIA_API_KEY = os.getenv("NVIDIA_API_KEY")
 
@@ -42,15 +42,15 @@ def get_llm(agent_type: str, max_tokens: int = 4096) -> BaseChatModel:
     provider = config["provider"]
     model_name = config["model"]
     
-    if provider == "cerebras":
-        if not CEREBRAS_API_KEY:
-            raise RuntimeError("CEREBRAS_API_KEY is not set in the .env file.")
+    if provider == "ollama":
+        if not OLLAMA_API_KEY:
+            raise RuntimeError("OLLAMA_API_KEY is not set in the .env file.")
         return ChatOpenAI(
-            api_key=CEREBRAS_API_KEY,
-            base_url=CEREBRAS_BASE_URL,
+            api_key=OLLAMA_API_KEY,
+            base_url=OLLAMA_BASE_URL,
             model=model_name,
             max_tokens=max_tokens,
-            timeout=30,
+            timeout=60,
             max_retries=1,
         )
         
