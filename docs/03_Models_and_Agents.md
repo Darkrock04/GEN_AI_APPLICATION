@@ -8,15 +8,15 @@ SPARK AI uses a **Multi-Cloud Mixture of Agents**. Instead of relying on a singl
 
 | Agent | Cloud Provider | Model | Why This Assignment? |
 |---|---|---|---|
-| **Security Gate** | **Nvidia NIM** | `meta/llama-3.1-8b-instruct` | Fast logic checking. |
+| **Security Gate** | **Ollama Cloud** | `nemotron-3-nano:30b` | Fast logic checking with Nvidia Nemotron on Ollama. |
 | **Planner** | **Google (Gemini)** | `gemini-3.1-flash-lite` | Strong reasoning, 15 RPM, 500 requests per day. |
-| **Router** | **Cerebras** | `gemma-4-31b` | Instant classification on Cerebras. |
-| `worker_general` | **Cerebras** | `gpt-oss-120b` | Massive generation. Takes advantage of Cerebras's 1,000,000 TPD allowance. |
-| `worker_creative` | **Cerebras** | `gpt-oss-120b` | High generation capabilities without hitting daily limits. |
+| **Router** | **Ollama Cloud** | `gemma4:31b` | Instant classification with Ollama free cloud tier. |
+| `worker_general` | **Ollama Cloud** | `gpt-oss:120b` | Massive generation. Takes advantage of Ollama's free cloud model tier. |
+| `worker_creative` | **Ollama Cloud** | `gpt-oss:120b` | High generation capabilities without hitting daily limits. |
 | `worker_coding` | **Google (Gemini)** | `gemini-3.5-flash` | Best coding model available on the free tier with 250K TPM. |
 | **Validator** | **Google (Gemini)** | `gemini-3.1-flash-lite` | Fast validation pass with huge 500 daily requests limit. |
-| **Evaluator** | **Nvidia NIM** | `meta/llama-3.1-70b-instruct`| Perfect for final text polish. |
-| **Embeddings** | **Nvidia NIM** | `nv-embedqa-e5-v5` | Enterprise-grade RAG embeddings. |
+| **Evaluator** | **Ollama Cloud** | `nemotron-3-super` | Perfect for final text polish with Nemotron 3 Super. |
+| **Embeddings** | **Google (Gemini)** | `gemini-embedding-001` | High-throughput RAG embeddings on Gemini API. |
 
 ---
 
@@ -24,10 +24,10 @@ SPARK AI uses a **Multi-Cloud Mixture of Agents**. Instead of relying on a singl
 
 To ensure SPARK AI runs completely for free, we engineered it around the following constraints:
 
-### 1. Cerebras Inference
-- **Requests Per Minute (RPM):** 30
-- **Tokens Per Day (TPD):** 1,000,000
-- *Our Usage:* 1 request per message (Workers). We heavily utilize their massive 1M daily token allowance for generating huge walls of text.
+### 1. Ollama Cloud
+- **Endpoint:** `https://ollama.com/v1` (OpenAI-compatible)
+- **Designated Free Models:** `gemma4:31b`, `gpt-oss:120b`, `gpt-oss:20b`, `nemotron-3-nano:30b`, `nemotron-3-super`, `nemotron-3-ultra`
+- *Our Usage:* Used for routing (`gemma4:31b`) and primary content generation (`gpt-oss:120b`).
 
 ### 2. Google AI Studio (Gemini)
 - **Requests Per Minute (RPM):** 15
@@ -40,6 +40,6 @@ To ensure SPARK AI runs completely for free, we engineered it around the followi
 
 ## API Keys
 To run this architecture, you must configure the following `.env` variables:
-- `CEREBRAS_API_KEY`
+- `OLLAMA_API_KEY` (and optional `OLLAMA_BASE_URL`)
 - `GEMINI_API_KEY`
 - `NVIDIA_API_KEY`
