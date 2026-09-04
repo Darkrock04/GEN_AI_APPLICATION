@@ -1,6 +1,6 @@
 # ⚡ SPARK AI — Multi-Agent RAG Application
 
-A production-grade, multi-agent AI assistant powered by a **Multi-Cloud Architecture** (Nvidia NIM, Google Gemini, and Cerebras). Features intelligent task routing, document RAG, and quality validation — optimized for speed and free-tier deployment.
+A production-grade, multi-agent AI assistant powered by a **Multi-Cloud Architecture** (Nvidia NIM, Google Gemini, and Ollama Cloud). Features intelligent task routing, document RAG, and quality validation — optimized for speed and free-tier deployment.
 
 **🔗 Live Demo:** [https://darkrock04-spark.hf.space/](https://darkrock04-spark.hf.space/)
 
@@ -46,7 +46,7 @@ pip install -r requirements.txt
 # 3. Configure API Keys
 # Create a .env file and set the following keys:
 # NVIDIA_API_KEY=your_key_here
-# CEREBRAS_API_KEY=your_key_here
+# OLLAMA_API_KEY=your_key_here
 # GEMINI_API_KEY=your_key_here
 
 # 4. Start backend
@@ -62,15 +62,15 @@ streamlit run frontend/app.py
 
 | Agent | Provider | Model | Purpose |
 |---|---|---|---|
-| Security | **Nvidia NIM** | `meta/llama-3.1-8b-instruct` | Fast SAFE/UNSAFE classification |
+| Security | **Ollama** | `nemotron-3-nano:30b` | Fast SAFE/UNSAFE classification |
 | Planner | **Google** | `gemini-3.1-flash-lite` | Task decomposition |
-| Router | **Cerebras** | `gemma-4-31b` | Classify: coding/creative/general |
-| Worker (General) | **Cerebras** | `gpt-oss-120b` | General generation |
-| Worker (Creative) | **Cerebras** | `gpt-oss-120b` | Creative writing |
+| Router | **Ollama** | `gemma4:31b` | Classify: coding/creative/general |
+| Worker (General) | **Ollama** | `gpt-oss:120b` | General generation |
+| Worker (Creative) | **Ollama** | `gpt-oss:120b` | Creative writing |
 | Worker (Coding) | **Google** | `gemini-3.5-flash` | Code generation |
 | Validator | **Google** | `gemini-3.1-flash-lite` | Quality check |
-| Evaluator | **Nvidia NIM** | `meta/llama-3.1-70b-instruct` | Polish & format |
-| Embeddings | **Nvidia NIM** | `nvidia/nv-embedqa-e5-v5` | Document RAG vectors |
+| Evaluator | **Ollama** | `nemotron-3-super` | Polish & format |
+| Embeddings | **Google** | `gemini-embedding-001` | Document RAG vectors |
 
 All models accessed via their respective free-tier/trial APIs.
 
