@@ -12,12 +12,9 @@ os.environ["ANONYMIZED_TELEMETRY"] = "False"
 from langchain_community.document_loaders import TextLoader, PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_chroma import Chroma
-from langchain_openai import OpenAIEmbeddings
+from langchain_google_genai import GoogleGenerativeAIEmbeddings
 
-from backend.llm_factory import (
-    NVIDIA_API_KEY,
-    NVIDIA_BASE_URL,
-)
+from backend.llm_factory import GEMINI_API_KEY
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -28,17 +25,13 @@ MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024  # 10MB (HF free tier friendly)
 
 
 def _get_embeddings():
-    """Embedding model mapped directly to Nvidia NIM."""
-    if not NVIDIA_API_KEY:
-        raise RuntimeError("NVIDIA_API_KEY not set in .env.")
+    """Embedding model using Google Gemini (gemini-embedding-001)."""
+    if not GEMINI_API_KEY:
+        raise RuntimeError("GEMINI_API_KEY not set in .env.")
     
-    embed_model = os.getenv("NVIDIA_EMBED_MODEL", "nvidia/nv-embedqa-e5-v5")
-    return OpenAIEmbeddings(
-        api_key=NVIDIA_API_KEY,
-        base_url=NVIDIA_BASE_URL,
-        model=embed_model,
-        check_embedding_ctx_length=False,
-        model_kwargs={"extra_body": {"input_type": "query"}}
+    return GoogleGenerativeAIEmbeddings(
+        model="models/gemini-embedding-001",
+        google_api_key=GEMINI_API_KEY,
     )
 
 
@@ -49,7 +42,7 @@ class VectorStoreManager:
             self.embedding_function = _get_embeddings()
             os.makedirs(DB_DIR, exist_ok=True)
             self.db = self._connect_chromadb("spark_session")
-            logger.info("VectorStoreManager initialized using Nvidia NIM embeddings.")
+            logger.info("VectorStoreManager initialized using Google Gemini embeddings.")
         except Exception as e:
             logger.error(f"CRITICAL: VectorStoreManager init failed: {e}")
             raise RuntimeError(f"Could not initialize vector store: {e}")
