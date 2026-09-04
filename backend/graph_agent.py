@@ -86,7 +86,10 @@ def _safe_llm_call(
     if top_p is not None:
         bind_kwargs["top_p"] = top_p
     if max_tokens is not None:
-        bind_kwargs["max_tokens"] = max_tokens
+        if "google" in str(type(llm)).lower() or "gemini" in str(type(llm)).lower():
+            bind_kwargs["max_output_tokens"] = max_tokens
+        else:
+            bind_kwargs["max_tokens"] = max_tokens
     if bind_kwargs:
         active_llm = llm.bind(**bind_kwargs)
 
@@ -425,7 +428,7 @@ def evaluation_node(state: GraphState) -> GraphState:
         "You are a quality editor. Polish this draft for the user:\n"
         "1. Fix formatting (proper markdown, code blocks, lists).\n"
         "2. Remove any meta-commentary about internal processes.\n"
-        "3. Ensure the response matches the conversational tone of the request (e.g. if it's a simple greeting, keep the reply simple; do not add weird examples).\n"
+        "3. Ensure the response matches the conversational tone of the request and stays directly focused on the user's question (remove any unsolicited company plugs or unprompted commercial product tangents).\n"
         "4. IF the draft contains math, ensure it uses dollar sign delimiters: inline $x^2$, block $$\\frac{{a}}{{b}}$$. (Do not add math if there is none).\n"
         "\nCRITICAL: Output ONLY the final polished text. Do NOT add any conversational intro (like 'Here is the polished version') or editor notes at the end. Your entire output will be shown directly to the user as the final answer.\n\n"
         "Request: {request}\nDraft:\n{draft}\n\nFinal Polished Text:",
