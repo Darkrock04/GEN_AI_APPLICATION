@@ -542,6 +542,19 @@ def _build_history_str(history: list) -> str:
     return older_summary + "\n".join(lines)
 
 
+# LANGFUSE OBSERVABILITY & TRACING
+def _get_langfuse_callback(session_id: str = None):
+    """Initializes Langfuse CallbackHandler if credentials exist in environment."""
+    if os.getenv("LANGFUSE_PUBLIC_KEY") and os.getenv("LANGFUSE_SECRET_KEY"):
+        try:
+            from langfuse.langchain import CallbackHandler
+            return CallbackHandler()
+        except Exception as e:
+            logger.warning(f"Could not initialize Langfuse callback: {e}")
+            return None
+    return None
+
+
 # PUBLIC ENTRY POINTS
 def _build_initial_state(request: str, history: list) -> dict:
     """Build the initial graph state from request."""
@@ -564,8 +577,14 @@ def process_chat(request: str, history: list = None) -> dict:
     """Main entry point. Returns dict with response, sources, and timings."""
     initial = _build_initial_state(request, history or [])
 
+    callbacks = []
+    lf_cb = _get_langfuse_callback(session_id=initial.get("request_id"))
+    if lf_cb:
+        callbacks.append(lf_cb)
+    config = {"callbacks": callbacks} if callbacks else {}
+
     start_time = time.time()
-    result = graph_app.invoke(initial)
+    result = graph_app.invoke(initial, config=config)
     total_ms = int((time.time() - start_time) * 1000)
 
     return {
@@ -580,8 +599,14 @@ def stream_graph_updates(request: str, history: list = None):
     """Yields merged state fragments after each node completes (for SSE/NDJSON)."""
     initial = _build_initial_state(request, history or [])
 
+    callbacks = []
+    lf_cb = _get_langfuse_callback(session_id=initial.get("request_id"))
+    if lf_cb:
+        callbacks.append(lf_cb)
+    config = {"callbacks": callbacks} if callbacks else {}
+
     start_time = time.time()
-    for chunk in graph_app.stream(initial, stream_mode="updates"):
+    for chunk in graph_app.stream(initial, config=config, stream_mode="updates"):
         for node_name, update in chunk.items():
             # Include timing info in each update
             elapsed_ms = int((time.time() - start_time) * 1000)
