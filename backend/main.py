@@ -11,7 +11,7 @@ from backend.api_models import (
     SourceChunk, TokenUsage,
 )
 from backend.graph_agent import process_chat, stream_graph_updates
-
+from backend.langfuse_prompt_manager import ensure_prompts_seeded
 from backend.vector_store import vector_store_manager, SUPPORTED_EXTENSIONS, MAX_FILE_SIZE_BYTES
 
 logging.basicConfig(level=logging.INFO)
@@ -67,6 +67,16 @@ async def global_exception_handler(request: Request, exc: Exception):
         status_code=500,
         content={"detail": f"Internal server error: {str(exc)[:200]}"}
     )
+
+
+# STARTUP LIFECYCLE HOOK
+@app.on_event("startup")
+async def startup_event():
+    """Seed and verify prompt templates in Langfuse Prompt Registry on application boot."""
+    try:
+        ensure_prompts_seeded()
+    except Exception as e:
+        logger.warning(f"Could not seed Langfuse prompts on startup: {e}")
 
 
 # HEALTH CHECK (Feature 13 — Enhanced)
