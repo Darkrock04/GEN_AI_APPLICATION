@@ -16,3 +16,4 @@ pypdf>=4.2.0
 python-multipart>=0.0.9
 openai>=1.30.0
 langchain-google-genai>=1.0.8
+langfuse>=2.0.0
