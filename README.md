@@ -23,6 +23,7 @@ SPARK AI is a robust Generative AI web application providing an advanced convers
 | ⚡ **Specialized Workers** | Different routing for coding, creative, and general tasks |
 | 🔄 **Session Memory** | Remembers your conversation within the current session |
 | 📊 **Pipeline Streaming** | Real-time visibility into each processing stage |
+| 🔭 **Langfuse Tracing** | Full agent observability, latency tracking, token analytics, and execution graphs |
 
 ---
 
@@ -48,6 +49,10 @@ pip install -r requirements.txt
 # NVIDIA_API_KEY=your_key_here
 # OLLAMA_API_KEY=your_key_here
 # GEMINI_API_KEY=your_key_here
+# (Optional) Langfuse Observability:
+# LANGFUSE_PUBLIC_KEY=pk-lf-your_key
+# LANGFUSE_SECRET_KEY=sk-lf-your_key
+# LANGFUSE_HOST=https://cloud.langfuse.com
 
 # 4. Start backend
 uvicorn backend.main:app --reload
