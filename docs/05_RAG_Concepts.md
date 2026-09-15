@@ -28,10 +28,11 @@ SPARK AI dynamically adjusts chunk size based on document characteristics:
 - **Text density:** Sparse pages (e.g., slides with < 200 chars/page) get smaller chunks
 - **Semantic separators:** Splits at `\n\n`, `\n`, `. `, `? `, `! ` boundaries for natural paragraph breaks
 
-### Why top-5 retrieval?
-- Top-3 can miss relevant information spread across sections
-- Top-5 provides comprehensive coverage without token overload
-- Chunks are joined with `---` separators for clear boundaries
+### Adaptive Top-K Retrieval & Gemini Embeddings
+- **Embeddings:** Powered by Google Gemini (`models/gemini-embedding-001`), converting text chunks into dense, high-dimensional semantic vectors.
+- **Top-K Retrieval:** Dynamically configurable from UI controls (defaulting to 10–15 chunks). This ensures comprehensive context extraction across multi-page documents while avoiding context saturation.
+- **Source Citation Metadata:** Every retrieved chunk records its `source_file`, `page`, `content_preview`, and `relevance_rank` for interactive UI citations.
+- **Prompt Grounding:** Retrieved chunks are injected directly into the active worker prompt template fetched from Langfuse (`worker_general_prompt`, `worker_coding_prompt`, or `worker_creative_prompt`) under the `{context}` variable.
 
 ### Why ChromaDB?
 - **Zero-config:** No database server needed — runs as a local library
