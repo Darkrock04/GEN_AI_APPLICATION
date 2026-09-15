@@ -23,7 +23,7 @@ SPARK AI is a robust Generative AI web application providing an advanced convers
 | ⚡ **Specialized Workers** | Different routing for coding, creative, and general tasks |
 | 🔄 **Session Memory** | Remembers your conversation within the current session |
 | 📊 **Pipeline Streaming** | Real-time visibility into each processing stage |
-| 🔭 **Langfuse Tracing** | Full agent observability, latency tracking, token analytics, and execution graphs |
+| 🔭 **Langfuse Observability & Prompt Registry** | Full agent tracing, 10 managed/versioned prompts, generation linking, and automated quality scoring |
 
 ---
 
@@ -38,8 +38,8 @@ SPARK AI is a robust Generative AI web application providing an advanced convers
 
 ```bash
 # 1. Clone
-git clone https://github.com/YOUR_USERNAME/YOUR_REPO.git
-cd YOUR_REPO
+git clone https://github.com/Darkrock04/GEN_AI_APPLICATION.git
+cd GEN_AI_APPLICATION
 
 # 2. Install
 pip install -r requirements.txt
@@ -49,7 +49,8 @@ pip install -r requirements.txt
 # NVIDIA_API_KEY=your_key_here
 # OLLAMA_API_KEY=your_key_here
 # GEMINI_API_KEY=your_key_here
-# (Optional) Langfuse Observability:
+# SEARXNG_URL=https://site0230-local.hf.space
+# Langfuse Observability & Prompt Management:
 # LANGFUSE_PUBLIC_KEY=pk-lf-your_key
 # LANGFUSE_SECRET_KEY=sk-lf-your_key
 # LANGFUSE_HOST=https://cloud.langfuse.com
@@ -81,25 +82,39 @@ All models accessed via their respective free-tier/trial APIs.
 
 ---
 
+## 🔭 Langfuse Observability & Prompt Management
+
+SPARK AI utilizes **Langfuse** as a centralized observability engine and prompt control plane:
+
+- **10 Managed Prompts:** All agent prompts (`security_gate_prompt`, `simple_answer_prompt`, `planner_prompt`, `router_prompt`, `worker_general_prompt`, `worker_coding_prompt`, `worker_creative_prompt`, `validator_prompt`, `evaluator_prompt`, `history_summarizer_prompt`) are managed in the Langfuse Prompt Registry.
+- **Auto-Seeding on Startup:** When the FastAPI server boots, `ensure_prompts_seeded()` automatically creates any missing prompts in Langfuse tagged `spark-ai` and labeled `production`.
+- **Zero-Downtime Hot-Swapping:** Prompts are fetched with a 300-second TTL cache. You can edit prompt templates or instructions directly in the Langfuse UI, and the live application updates within 5 minutes without restarting or redeploying.
+- **Generation-to-Prompt Linking:** Every LLM generation is tied to its prompt version in metadata, allowing you to track token consumption, cost, and latency per prompt iteration.
+- **Trace Quality Scoring:** The output of `validation_node` automatically logs an evaluation score (`quality_validation` = `1.0` or `0.0`) with validator feedback directly into the Langfuse trace.
+
+---
+
 ## 📁 Project Structure
 
 ```
 SPARK-AI/
-├── app.py                  # HF Spaces launcher (FastAPI + Streamlit)
-├── requirements.txt        # Python dependencies
-├── .env                    # Environment variables (gitignored)
+├── app.py                      # HF Spaces launcher (FastAPI + Streamlit)
+├── requirements.txt            # Python dependencies (includes langfuse)
+├── .env                        # Environment variables (gitignored)
 ├── backend/
-│   ├── api_models.py       # Pydantic request/response schemas
-│   ├── llm_factory.py      # Model registry & LLM initialization
-│   ├── graph_agent.py      # LangGraph multi-agent pipeline (core)
-│   ├── vector_store.py     # ChromaDB RAG engine with adaptive chunking
-│   └── main.py             # FastAPI server & endpoints
+│   ├── api_models.py           # Pydantic request/response schemas
+│   ├── llm_factory.py          # Model registry & multi-cloud LLM initialization
+│   ├── graph_agent.py          # LangGraph multi-agent pipeline (core)
+│   ├── langfuse_prompt_manager.py # Prompt registry, auto-seeding, TTL cache & scoring
+│   ├── vector_store.py         # ChromaDB RAG engine with adaptive chunking
+│   ├── tools.py                # SearXNG live web search integration
+│   └── main.py                 # FastAPI server, startup seeding & endpoints
 ├── frontend/
-│   └── app.py              # Streamlit chat UI
+│   └── app.py                  # Streamlit chat UI
 ├── deploy/
 │   └── HUGGINGFACE_README_SNIPPET.md
-├── docs/                   # Detailed documentation
-└── chroma_db/              # Vector database (gitignored)
+├── docs/                       # Detailed documentation
+└── chroma_db/                  # Vector database (gitignored)
 ```
 
 ---
