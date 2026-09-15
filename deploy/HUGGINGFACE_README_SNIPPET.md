@@ -18,14 +18,20 @@ license: mit
 
 ## Secrets (Space settings → Repository secrets)
 
-Add at least:
+Configure the following secrets for the Multi-Cloud and Langfuse architecture:
 
-- `NVIDIA_API_KEY` — or switch `LLM_PROVIDER` in variables and set the matching keys (see `.env.example`).
+- `OLLAMA_API_KEY` — Ollama Cloud key (router, security, workers, evaluator)
+- `GEMINI_API_KEY` — Google Gemini key (planner, coding worker, embeddings)
+- `NVIDIA_API_KEY` — Nvidia NIM key (inference & embeddings)
+- `SEARXNG_URL` — SearXNG search engine instance URL
+- `LANGFUSE_PUBLIC_KEY` — Langfuse project public key (`pk-lf-...`)
+- `LANGFUSE_SECRET_KEY` — Langfuse project secret key (`sk-lf-...`)
+- `LANGFUSE_HOST` — Langfuse host (`https://cloud.langfuse.com`)
 
 Optional variables (same as `.env`):
 
-- `LLM_PROVIDER`
-- `CORS_ORIGINS` (use `*` on HF unless you restrict)
+- `OLLAMA_BASE_URL` (defaults to `https://ollama.com/v1`)
+- `CORS_ORIGINS` (use `*` on HF unless restricted)
 
 ## Single entrypoint
 
