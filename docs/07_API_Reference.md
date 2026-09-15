@@ -36,7 +36,11 @@ Main conversation endpoint. Synchronous, returns the full response.
     "history": [
         {"role": "user", "content": "Hello"},
         {"role": "assistant", "content": "Hi! How can I help?"}
-    ]
+    ],
+    "temperature": 0.7,
+    "top_p": 0.9,
+    "max_tokens": 2048,
+    "retrieval_k": 10
 }
 ```
 
@@ -44,13 +48,24 @@ Main conversation endpoint. Synchronous, returns the full response.
 |---|---|---|---|
 | `message` | string | ✅ | User's message (max 8000 chars) |
 | `history` | list | ❌ | Previous conversation messages |
+| `temperature` | float | ❌ | Model temperature override |
+| `top_p` | float | ❌ | Top-p nucleus sampling override |
+| `max_tokens` | int | ❌ | Max completion tokens |
+| `retrieval_k` | int | ❌ | Top-k chunks to retrieve for RAG |
 
 **Response:**
 ```json
 {
     "response": "Machine learning is a subset of AI that...",
     "status": "success",
-    "sources": [],
+    "sources": [
+        {
+            "filename": "ai_handbook.pdf",
+            "page": 4,
+            "content_preview": "Machine learning focuses on training statistical models...",
+            "relevance_rank": 1
+        }
+    ],
     "token_usage": null,
     "response_time_ms": 1542
 }
@@ -59,16 +74,19 @@ Main conversation endpoint. Synchronous, returns the full response.
 ---
 
 ## `POST /chat/stream`
-Streaming conversation endpoint. Returns NDJSON with real-time pipeline state updates.
+Streaming conversation endpoint. Returns NDJSON with real-time pipeline state updates and node latencies.
 
 **Request Body:** Same as `/chat`
 
 **Response (NDJSON stream):**
 ```json
-{"node": "stress_test", "update": {"is_safe": true}}
-{"node": "planner", "update": {"plan": "Step 1: ..."}}
-{"node": "worker", "update": {"draft": "Here is the response..."}}
-...
+{"node": "stress_test", "update": {"is_safe": true, "_elapsed_ms": 45}}
+{"node": "planner", "update": {"plan": "Step 1: ...", "_elapsed_ms": 180}}
+{"node": "retrieve", "update": {"context": "...", "sources": [...], "_elapsed_ms": 320}}
+{"node": "router", "update": {"task_type": "coding", "_elapsed_ms": 410}}
+{"node": "worker", "update": {"draft": "...", "_elapsed_ms": 1450}}
+{"node": "validation", "update": {"validation_pass": true, "feedback": "APPROVED", "_elapsed_ms": 1690}}
+{"node": "evaluation", "update": {"final_response": "...", "_elapsed_ms": 1920}}
 ```
 
 ---
