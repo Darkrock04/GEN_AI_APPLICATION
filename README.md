@@ -149,7 +149,7 @@ SPARK-AI/
 
 ## 📄 Document RAG Pipeline
 
-![Document RAG Pipeline](docs/images/rag_pipeline.png)
+![Document RAG Pipeline](docs/images/rag_lifecycle_v2.png)
 
 | Document Size | Chunk Size | Overlap |
 |---|---|---|
