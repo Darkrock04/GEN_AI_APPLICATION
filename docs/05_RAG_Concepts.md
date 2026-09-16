@@ -11,7 +11,7 @@ Large Language Models (LLMs) are trained on public internet data up to a cutoff 
 
 ## RAG Pipeline in SPARK AI
 
-![Detailed RAG Lifecycle](../docs/images/rag_lifecycle.png)
+![Detailed RAG Lifecycle](images/rag_lifecycle_v2.png)
 
 ## Adaptive Chunking
 
