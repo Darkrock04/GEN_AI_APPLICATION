@@ -139,12 +139,12 @@ def _safe_llm_call(
         except Exception as e:
             err_str = str(e).lower()
             is_rate_limit = any(k in err_str for k in ("429", "rate", "quota", "too many"))
-            if is_rate_limit and attempt < retries:
-                wait = 2 ** (attempt + 1)
-                logger.warning(f"Rate limited (attempt {attempt+1}), waiting {wait}s...")
+            if attempt < retries:
+                wait = 2 ** (attempt + 1) if is_rate_limit else 1
+                logger.warning(f"LLM call failed (attempt {attempt+1}/{retries+1}): {e}. Retrying in {wait}s...")
                 time.sleep(wait)
                 continue
-            logger.warning(f"LLM call failed (attempt {attempt+1}): {e}")
+            logger.warning(f"LLM call failed after {retries+1} attempts: {e}")
             return fallback
     return fallback
 
@@ -225,6 +225,17 @@ def planner_node(state: GraphState) -> GraphState:
     
     needs_web = "[NEEDS_WEB_SEARCH]" in response
     clean_plan = response.replace("[NEEDS_WEB_SEARCH]", "").strip()
+    
+    # Deterministic safety net: If query explicitly asks for real-time, current, or news data, force web search
+    req_lower = state["request"].lower()
+    search_keywords = (
+        "latest", "news", "today", "current", "weather",
+        "stock price", "price of", "recent", "who won",
+        "what happened", "release date", "search the web",
+        "browse the web", "search online"
+    )
+    if any(k in req_lower for k in search_keywords):
+        needs_web = True
     
     return {"plan": clean_plan, "needs_web_search": needs_web}
 

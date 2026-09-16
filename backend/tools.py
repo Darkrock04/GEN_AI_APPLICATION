@@ -11,15 +11,29 @@ def perform_web_search(query: str, max_results: int = 5) -> str:
     """
     Queries the self-hosted SearXNG instance and returns a formatted markdown string of results.
     """
-    searxng_url = os.getenv("SEARXNG_URL", "").rstrip("/")
+    searxng_url = os.getenv("SEARXNG_URL", "https://site0230-local.hf.space").rstrip("/")
     if not searxng_url:
         logger.warning("SEARXNG_URL is not set. Web search is disabled.")
         return ""
 
     try:
+        # Strip common conversational prefixes for cleaner search results
+        clean_q = query.strip()
+        prefixes = [
+            "can you tell me the ", "can you tell me ", "can u tell me the ", "can u tell me ",
+            "tell me about the ", "tell me about ", "tell me the ", "tell me ",
+            "what is the ", "what is ", "what are the ", "what are ",
+            "give me the ", "give me ", "search the web for ", "search for ",
+            "what's the ", "what's "
+        ]
+        for prefix in prefixes:
+            if clean_q.lower().startswith(prefix):
+                clean_q = clean_q[len(prefix):].strip()
+                break
+
         # Build URL with params
         params = urllib.parse.urlencode({
-            "q": query,
+            "q": clean_q,
             "format": "json"
         })
         url = f"{searxng_url}/search?{params}"
