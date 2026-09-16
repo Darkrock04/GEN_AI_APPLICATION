@@ -13,25 +13,26 @@
 ### 2. `langfuse_prompt_manager.py` — Prompt Registry & Quality Scoring
 **Purpose:** Central prompt management plane and evaluation logger for Langfuse.
 
-- **`DEFAULT_PROMPTS`:** Catalog of all 10 system prompts in Langfuse `{{variable}}` mustache format
+- **`DEFAULT_PROMPTS`:** Catalog of all 11 system prompts in Langfuse `{{variable}}` mustache format (including `document_grader_prompt` for CRAG)
 - **`ensure_prompts_seeded()`:** Application boot utility that creates any missing prompts in Langfuse labeled `production` and tagged `spark-ai`
 - **`get_managed_prompt(name)`:** High-performance prompt fetcher with a 300-second TTL cache, returning both the LangChain `{var}` template string and the Langfuse prompt object for trace linking
 - **`log_validation_score()`:** Logs automated numeric scores (`quality_validation` = `1.0` / `0.0`) with validator feedback into Langfuse traces
 
 ### 3. `graph_agent.py` — Multi-Agent Pipeline (Core)
-**Purpose:** The brain of the application. Defines the LangGraph StateGraph connecting all agent nodes.
+**Purpose:** The brain of the application. Defines the LangGraph StateGraph connecting all 10 agent nodes with Corrective RAG and self-reflection loops.
 
 **Key components:**
-- `GraphState` — TypedDict tracking request, history, safety, plan, context, sources, task type, draft, validation status, and node timings
+- `GraphState` — TypedDict tracking request, history, current_date, safety, plan, doc_relevance, context, sources, task type, draft, validation status, and node timings
 - `_safe_llm_call()` — Resilient wrapper that fetches managed prompts from Langfuse, binds dynamic parameters, attaches prompt linking metadata, and handles rate-limit backoffs
 - `stress_test_node()` — Two-stage security check (instant keyword check + LLM fallback using `security_gate_prompt`)
 - `simple_answer_node()` — Conversational greeting fast path using `simple_answer_prompt`
-- `planner_node()` — Task decomposition and search intent detection using `planner_prompt`
-- `web_search_node()` — SearXNG live web retrieval
+- `planner_node()` — Date-aware task decomposition and search intent detection using `planner_prompt`
 - `retrieve_context_node()` — ChromaDB RAG retrieval with source citation metadata
+- `grade_documents_node()` — Corrective RAG (CRAG) document relevance grading using `document_grader_prompt`
+- `web_search_node()` — SearXNG live web retrieval triggered by planner, document grader, or worker self-reflection
 - `router_node()` — Task classification into coding/creative/general using `router_prompt`
-- `worker_agent_node()` — Specialized generation using `worker_general_prompt`, `worker_coding_prompt`, or `worker_creative_prompt`
-- `validation_node()` — Consolidated quality evaluation using `validator_prompt` with automated Langfuse score logging
+- `worker_agent_node()` — Specialized generation using `worker_general_prompt`, `worker_coding_prompt`, or `worker_creative_prompt` with dynamic date grounding and cutoff self-reflection
+- `validation_node()` — Two-stage quality evaluation (factual grounding + cutoff detection) using `validator_prompt`
 - `evaluation_node()` — Final polish and LaTeX/Markdown formatting using `evaluator_prompt`
 - `_build_history_str()` — Semantic memory compression using `history_summarizer_prompt`
 - `process_chat()` / `stream_graph_updates()` — Public entry points injecting Langfuse `CallbackHandler` with session IDs, trace names, and tags
@@ -40,6 +41,7 @@
 **Purpose:** Interfaces with a live SearXNG instance for real-time internet data retrieval.
 
 - `perform_web_search(query)`: Queries SearXNG REST API, extracts page snippets and URLs, and formats them into context blocks for workers
+- `extract_search_query(text, default)`: Extracts focused search queries from `[NEEDS_WEB_SEARCH: query]` directives and cleans conversational prefixes
 
 ### 5. `vector_store.py` — RAG Engine
 **Purpose:** Document ingestion, embedding, storage, and retrieval using ChromaDB.

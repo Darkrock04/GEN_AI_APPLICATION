@@ -16,18 +16,19 @@ SPARK AI is a robust Generative AI web application providing an advanced convers
 
 | Feature | Description |
 |---------|-------------|
-| 🧠 **Chat & Reason** | Multi-agent pipeline with automated planning, dynamic routing, and validation |
-| 📑 **Document RAG** | Upload PDFs/TXT — adaptive chunking, embedding, and intelligent retrieval |
+| 🧠 **Chat & Reason** | Multi-agent pipeline with automated planning, dynamic routing, and two-stage validation |
+| 📑 **Corrective RAG (CRAG)** | Upload PDFs/TXT — document relevance grading with automatic SearXNG web search fallback |
+| 🔄 **Self-Reflective Anti-Hallucination** | Dynamic date grounding with mid-generation cutoff detection and live web search loopback |
 | 🔒 **Content Safety** | Two-stage security gate (keyword pre-filter + LLM fallback) |
-| ✅ **Quality Validation** | Consolidated relevance + factuality + coherence check |
-| ⚡ **Specialized Workers** | Different routing for coding, creative, and general tasks |
-| 🔄 **Session Memory** | Remembers your conversation within the current session |
-| 📊 **Pipeline Streaming** | Real-time visibility into each processing stage |
-| 🔭 **Langfuse Observability & Prompt Registry** | Full agent tracing, 10 managed/versioned prompts, generation linking, and automated quality scoring |
+| ✅ **Quality Validation** | Consolidated relevance + factuality + coherence check with Langfuse trace scoring |
+| ⚡ **Specialized Workers** | Multi-cloud routing for coding (`gemini-3.5-flash`), creative, and general tasks (`gpt-oss:120b`) |
+| 🔄 **Session Memory** | Remembers your conversation within the current session via semantic summarization |
+| 📊 **Pipeline Streaming** | Real-time visibility into each processing stage with animated badges |
+| 🔭 **Langfuse Observability & Prompt Registry** | Full agent tracing, 11 managed/versioned prompts, generation linking, and automated quality scoring |
 
 ---
 
-<img width="1024" alt="arch" src="docs/images/architecture_v2.png" />
+<img width="1024" alt="arch" src="docs/images/architecture_v3.png" />
 
 
 
@@ -68,14 +69,16 @@ streamlit run frontend/app.py
 
 | Agent | Provider | Model | Purpose |
 |---|---|---|---|
-| Security | **Ollama** | `nemotron-3-nano:30b` | Fast SAFE/UNSAFE classification |
-| Planner | **Google** | `gemini-3.1-flash-lite` | Task decomposition |
+| Security Gate | **Ollama** | `nemotron-3-nano:30b` | Fast SAFE/UNSAFE classification |
+| Quick Greeter | **Ollama** | `gpt-oss:120b` | Natural, instantaneous responses for greetings |
+| Planner | **Google** | `gemini-3.1-flash-lite` | Date-aware task decomposition & search planning |
+| Document Grader | **Google** | `gemini-3.1-flash-lite` | Corrective RAG (CRAG) binary document relevance grading |
 | Router | **Ollama** | `gemma4:31b` | Classify: coding/creative/general |
-| Worker (General) | **Ollama** | `gpt-oss:120b` | General generation |
-| Worker (Creative) | **Ollama** | `gpt-oss:120b` | Creative writing |
-| Worker (Coding) | **Google** | `gemini-3.5-flash` | Code generation |
-| Validator | **Google** | `gemini-3.1-flash-lite` | Quality check |
-| Evaluator | **Ollama** | `nemotron-3-super` | Polish & format |
+| Worker (General) | **Ollama** | `gpt-oss:120b` | General generation & factual prose |
+| Worker (Creative) | **Ollama** | `gpt-oss:120b` | Creative writing & brainstorming |
+| Worker (Coding) | **Google** | `gemini-3.5-flash` | Code generation & deep technical synthesis |
+| Validator | **Google** | `gemini-3.1-flash-lite` | Factual grounding & cutoff auditing |
+| Evaluator | **Ollama** | `nemotron-3-super` | Polish & LaTeX formatting |
 | Embeddings | **Google** | `gemini-embedding-001` | Document RAG vectors |
 
 All models accessed via their respective free-tier/trial APIs.
@@ -86,7 +89,7 @@ All models accessed via their respective free-tier/trial APIs.
 
 SPARK AI utilizes **Langfuse** as a centralized observability engine and prompt control plane:
 
-- **10 Managed Prompts:** All agent prompts (`security_gate_prompt`, `simple_answer_prompt`, `planner_prompt`, `router_prompt`, `worker_general_prompt`, `worker_coding_prompt`, `worker_creative_prompt`, `validator_prompt`, `evaluator_prompt`, `history_summarizer_prompt`) are managed in the Langfuse Prompt Registry.
+- **11 Managed Prompts:** All agent prompts (`security_gate_prompt`, `simple_answer_prompt`, `planner_prompt`, `document_grader_prompt`, `router_prompt`, `worker_general_prompt`, `worker_coding_prompt`, `worker_creative_prompt`, `validator_prompt`, `evaluator_prompt`, `history_summarizer_prompt`) are managed in the Langfuse Prompt Registry.
 - **Auto-Seeding on Startup:** When the FastAPI server boots, `ensure_prompts_seeded()` automatically creates any missing prompts in Langfuse tagged `spark-ai` and labeled `production`.
 - **Zero-Downtime Hot-Swapping:** Prompts are fetched with a 300-second TTL cache. You can edit prompt templates or instructions directly in the Langfuse UI, and the live application updates within 5 minutes without restarting or redeploying.
 - **Generation-to-Prompt Linking:** Every LLM generation is tied to its prompt version in metadata, allowing you to track token consumption, cost, and latency per prompt iteration.

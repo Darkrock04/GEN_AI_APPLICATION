@@ -47,3 +47,15 @@ existing = self.db.get(where={"source_file": source_name})
 if existing and existing.get("ids"):
     return len(existing["ids"])  # Skip — already exists
 ```
+
+---
+
+## Corrective RAG (CRAG) & Document Relevance Grading
+
+Standard RAG assumes that if documents are retrieved, they must be relevant. In enterprise environments, passing off-topic chunks to the generator creates **hallucinations or unhelpful responses**.
+
+SPARK AI implements **Corrective RAG (CRAG)** via `grade_documents_node`:
+1. **Relevance Grading:** Top retrieved chunks are audited against the user's question by `gemini-3.1-flash-lite` using `document_grader_prompt`.
+2. **Binary Decision:** The model classifies the context as `RELEVANT` or `IRRELEVANT`.
+3. **Adaptive Web Search Fallback:** If documents are irrelevant, off-topic, or absent, the pipeline automatically diverts to `web_search_node` via SearXNG to fetch live internet ground truth before the worker synthesizes an answer.
+4. **Self-Reflective Loop:** If the worker detects that its knowledge is beyond cutoff during draft synthesis, it emits `[NEEDS_WEB_SEARCH: query]`, dynamically triggering live web search and re-generation.

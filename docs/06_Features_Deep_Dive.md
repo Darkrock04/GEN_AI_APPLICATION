@@ -17,6 +17,14 @@ The agent has direct access to the live internet:
 - The graph routes to the **Web Search Node**, which silently queries a self-hosted SearXNG instance.
 - The returned web snippets and URLs are injected into the context window, giving the LLM live knowledge far beyond its original training cutoff.
 
+## 1.6. Enterprise Corrective RAG (CRAG) & Self-RAG Loops
+
+To eliminate hallucinations and knowledge cutoff apologies, SPARK AI incorporates industrial self-correction:
+- **Document Relevance Grading:** Chunks retrieved from ChromaDB are graded by `grade_documents_node`. If they are off-topic or empty, the pipeline dynamically pivots to SearXNG web search rather than allowing the worker to guess.
+- **Dynamic Date Injection:** The execution date (`datetime.now()`) is injected into planner and worker prompts (`{{current_date}}`), making models actively aware of temporal context.
+- **Worker Self-Reflection Loop:** If a worker emits `[NEEDS_WEB_SEARCH: query]` or admits a cutoff (*"as of my knowledge cutoff"*, *"up to mid-2024"*), `route_after_worker` intercepts the draft, queries SearXNG, enriches the context, and re-invokes the worker for a grounded answer.
+- **Cutoff Gate in Validator:** If a draft contains cutoff disclaimers without live search, the validator fails with `FAIL: CUTOFF_DETECTED`, prompting an automatic web search recovery pass.
+
 ## 2. Consolidated Validation (Single LLM Call)
 
 Every complex response passes through a single validation call that checks three criteria simultaneously:

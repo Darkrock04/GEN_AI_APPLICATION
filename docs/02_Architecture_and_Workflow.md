@@ -4,7 +4,7 @@
 
 Every user message flows through a **LangGraph StateGraph** — a directed graph where each node is a specialized agent. Routing is dynamic based on the content of the request.
 
-<img width="1024" alt="arch" src="images/architecture_v2.png" />
+<img width="1024" alt="arch" src="images/architecture_v3.png" />
 
 ## LLM Calls Per Request Type
 
