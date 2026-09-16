@@ -4,12 +4,13 @@ import re
 import uuid
 import time
 import hashlib
+from datetime import datetime
 from typing import TypedDict, Any
 from langgraph.graph import StateGraph, END
 from langchain_core.prompts import ChatPromptTemplate
 from backend.llm_factory import get_llm
 from backend.vector_store import vector_store_manager
-from backend.tools import perform_web_search
+from backend.tools import perform_web_search, extract_search_query
 from backend.langfuse_prompt_manager import get_managed_prompt, log_validation_score
 
 logging.basicConfig(level=logging.INFO)
@@ -27,6 +28,11 @@ class GraphState(TypedDict):
     is_safe: bool
     is_simple: bool
     needs_web_search: bool
+    web_search_completed: bool
+    retrieval_completed: bool
+    doc_relevance: str       # "relevant" | "irrelevant" | "none"
+    search_query: str
+    current_date: str
     plan: str
     context: str
     sources: list            # Source citation metadata
@@ -216,9 +222,14 @@ def simple_answer_node(state: GraphState) -> GraphState:
 # PLANNER
 @_timed_node
 def planner_node(state: GraphState) -> GraphState:
+    current_date = state.get("current_date") or datetime.now().strftime("%B %d, %Y")
     response = _safe_llm_call(
         llm=planner_llm,
-        variables={"request": state["request"], "history": state.get("history") or "None"},
+        variables={
+            "request": state["request"],
+            "history": state.get("history") or "None",
+            "current_date": current_date,
+        },
         fallback="Respond to the user.",
         prompt_name="planner_prompt",
     )
@@ -243,18 +254,27 @@ def planner_node(state: GraphState) -> GraphState:
 # WEB SEARCH
 @_timed_node
 def web_search_node(state: GraphState) -> GraphState:
-    results = perform_web_search(state["request"])
+    query_to_search = state.get("search_query") or state["request"]
+    results = perform_web_search(query_to_search)
     
     sources = list(state.get("sources", []))
     if results and "No recent internet information" not in results:
-        sources.append({
-            "filename": "SearXNG Web Search",
-            "page": None,
-            "content_preview": "Live web results retrieved from search engine.",
-            "relevance_rank": 0
-        })
+        if not any(s.get("filename") == "SearXNG Web Search" for s in sources):
+            sources.append({
+                "filename": "SearXNG Web Search",
+                "page": None,
+                "content_preview": "Live web results retrieved from search engine.",
+                "relevance_rank": 0
+            })
         
-    return {"context": results, "sources": sources}
+    # Merge with any existing context from prior steps
+    existing_context = state.get("context", "")
+    combined_context = f"{existing_context}\n\n{results}".strip() if existing_context else results
+    return {
+        "context": combined_context,
+        "sources": sources,
+        "web_search_completed": True,
+    }
 
 
 # RETRIEVAL with SOURCE CITATIONS (Feature 7)
@@ -263,7 +283,7 @@ def retrieve_context_node(state: GraphState) -> GraphState:
     # Use dynamic k from user controls (default 10)
     k = state.get("retrieval_k", 10)
 
-    # existing context from web_search_node
+    # existing context from web_search_node (if ran prior)
     existing_context = state.get("context", "")
     sources = list(state.get("sources", []))
 
@@ -271,7 +291,7 @@ def retrieve_context_node(state: GraphState) -> GraphState:
     results = vector_store_manager.retrieve_with_metadata(state["request"], k=k)
 
     if not results:
-        return {"context": existing_context, "sources": sources}
+        return {"context": existing_context, "sources": sources, "retrieval_completed": True}
 
     # Build context string
     context_parts = [existing_context] if existing_context else []
@@ -287,7 +307,34 @@ def retrieve_context_node(state: GraphState) -> GraphState:
         sources.append(source_info)
 
     context = "\n\n---\n\n".join(filter(None, context_parts))
-    return {"context": context, "sources": sources}
+    return {"context": context, "sources": sources, "retrieval_completed": True}
+
+
+# DOCUMENT RELEVANCE GRADER (Corrective RAG / CRAG)
+@_timed_node
+def grade_documents_node(state: GraphState) -> GraphState:
+    context = state.get("context", "").strip()
+    sources = state.get("sources", [])
+
+    # If no documents are uploaded or context is empty
+    if not context or not sources or context == "(No documents uploaded — answering from knowledge)":
+        return {"doc_relevance": "irrelevant"}
+
+    # If sources already contain SearXNG web search, skip grading
+    if any(s.get("filename") == "SearXNG Web Search" for s in sources):
+        return {"doc_relevance": "relevant"}
+
+    decision = _safe_llm_call(
+        llm=validator_llm,
+        variables={
+            "request": state["request"][:1000],
+            "context": context[:1500],
+        },
+        fallback="RELEVANT",
+        prompt_name="document_grader_prompt",
+    )
+    is_relevant = "RELEVANT" in decision.upper() and "IRRELEVANT" not in decision.upper()
+    return {"doc_relevance": "relevant" if is_relevant else "irrelevant"}
 
 
 # ROUTER
@@ -324,8 +371,10 @@ def _build_worker_context(state: GraphState) -> dict:
     """Build clean variable dict for worker prompts."""
     ctx = state.get("context") or ""
     history = state.get("history") or ""
+    current_date = state.get("current_date") or datetime.now().strftime("%B %d, %Y")
 
     return {
+        "current_date": current_date,
         "history": history if history.strip() else "(No previous conversation)",
         "plan": state.get("plan") or "Answer the request directly.",
         "context": ctx if ctx.strip() else "(No documents uploaded — answering from knowledge)",
@@ -435,7 +484,56 @@ def route_after_planner(state: GraphState) -> str:
     return "retrieve"
 
 
+def route_after_web_search(state: GraphState) -> str:
+    # If triggered from worker self-correction loop, route directly back to worker
+    if state.get("draft_generation_count", 0) > 0:
+        return "worker"
+    # If triggered before retrieval, route to retrieve
+    if not state.get("retrieval_completed", False):
+        return "retrieve"
+    return "router"
+
+
+def route_after_grade_documents(state: GraphState) -> str:
+    # If documents are irrelevant/missing and web search hasn't run yet, trigger web search
+    if state.get("doc_relevance") == "irrelevant" and not state.get("web_search_completed"):
+        logger.info("CRAG: Retrieved context is irrelevant/missing. Routing to web_search for grounding.")
+        return "web_search"
+    return "router"
+
+
+def route_after_worker(state: GraphState) -> str:
+    draft = state.get("draft", "")
+    draft_lower = draft.lower()
+
+    cutoff_indicators = (
+        "[needs_web_search",
+        "as of my knowledge cutoff",
+        "up to the middle of 2024",
+        "up to mid-2024",
+        "latest period for which i have reliable",
+        "i do not have real-time",
+        "as of my last update",
+        "cutoff of 2024",
+        "knowledge cutoff of",
+    )
+    # Check if worker triggered web search or admitted cutoff
+    if any(ind in draft_lower for ind in cutoff_indicators) and not state.get("web_search_completed"):
+        extracted_q = extract_search_query(draft, state["request"])
+        logger.info(f"Self-Correction: Worker hit cutoff/knowledge gap. Triggering web search with query: '{extracted_q}'")
+        state["search_query"] = extracted_q
+        return "web_search"
+
+    return "validation"
+
+
 def route_after_validation(state: GraphState) -> str:
+    feedback = state.get("feedback", "")
+    # If validator caught a cutoff disclaimer and search hasn't run yet
+    if "CUTOFF_DETECTED" in feedback and not state.get("web_search_completed"):
+        logger.info("Validator detected knowledge cutoff. Triggering web search.")
+        return "web_search"
+
     if state.get("validation_pass", True):
         return "evaluation"
     if state.get("draft_generation_count", 0) >= MAX_DRAFT_ATTEMPTS:
@@ -450,6 +548,7 @@ workflow.add_node("simple_answer", simple_answer_node)
 workflow.add_node("planner", planner_node)
 workflow.add_node("web_search", web_search_node)
 workflow.add_node("retrieve", retrieve_context_node)
+workflow.add_node("grade_documents", grade_documents_node)
 workflow.add_node("router", router_node)
 workflow.add_node("worker", worker_agent_node)
 workflow.add_node("validation", validation_node)
@@ -461,14 +560,20 @@ workflow.add_conditional_edges(
     {"end": END, "simple_answer": "simple_answer", "planner": "planner"},
 )
 workflow.add_edge("simple_answer", END)
+
 workflow.add_conditional_edges("planner", route_after_planner, {"web_search": "web_search", "retrieve": "retrieve"})
-workflow.add_edge("web_search", "retrieve")
-workflow.add_edge("retrieve", "router")
+workflow.add_conditional_edges("web_search", route_after_web_search, {"retrieve": "retrieve", "router": "router", "worker": "worker"})
+
+workflow.add_edge("retrieve", "grade_documents")
+workflow.add_conditional_edges("grade_documents", route_after_grade_documents, {"web_search": "web_search", "router": "router"})
+
 workflow.add_edge("router", "worker")
-workflow.add_edge("worker", "validation")
+
+workflow.add_conditional_edges("worker", route_after_worker, {"web_search": "web_search", "validation": "validation"})
+
 workflow.add_conditional_edges(
     "validation", route_after_validation,
-    {"evaluation": "evaluation", "worker": "worker"},
+    {"evaluation": "evaluation", "worker": "worker", "web_search": "web_search"},
 )
 workflow.add_edge("evaluation", END)
 
@@ -543,6 +648,11 @@ def _build_initial_state(request: str, history: list) -> dict:
         "history": _build_history_str(history),
         "draft_generation_count": 0,
         "needs_web_search": False,
+        "web_search_completed": False,
+        "retrieval_completed": False,
+        "doc_relevance": "none",
+        "search_query": "",
+        "current_date": datetime.now().strftime("%B %d, %Y"),
         "request_id": uuid.uuid4().hex[:8],
         "temperature": 0.7,      # Default, overridden by router
         "top_p": 0.9,          # Default, overridden by router

@@ -11,6 +11,7 @@ SPARK AI uses a **Multi-Cloud Mixture of Agents**. Instead of relying on a singl
 | **Security Gate** | **Ollama Cloud** | `nemotron-3-nano:30b` | `security_gate_prompt` | Fast logic checking with Nvidia Nemotron on Ollama. |
 | **Quick Greeter** | **Ollama Cloud** | `gpt-oss:120b` | `simple_answer_prompt` | Natural, fast responses for basic greetings. |
 | **Planner** | **Google (Gemini)** | `gemini-3.1-flash-lite` | `planner_prompt` | Strong reasoning, 15 RPM, 500 requests per day. |
+| **Document Grader** | **Google (Gemini)** | `gemini-3.1-flash-lite` | `document_grader_prompt` | Corrective RAG (CRAG) binary relevance grading of retrieved chunks. |
 | **Router** | **Ollama Cloud** | `gemma4:31b` | `router_prompt` | Instant classification with Ollama free cloud tier. |
 | `worker_general` | **Ollama Cloud** | `gpt-oss:120b` | `worker_general_prompt` | Massive generation. Takes advantage of Ollama's free cloud tier. |
 | `worker_creative` | **Ollama Cloud** | `gpt-oss:120b` | `worker_creative_prompt` | High generation capabilities without hitting daily limits. |

@@ -3,9 +3,26 @@ import json
 import logging
 import urllib.request
 import urllib.parse
+import re
 from typing import List, Dict, Any
 
 logger = logging.getLogger(__name__)
+
+def extract_search_query(text: str, default: str = "") -> str:
+    """
+    Extracts a focused search query from model output containing [NEEDS_WEB_SEARCH: query]
+    or falls back to conversational cleaning of the default prompt.
+    """
+    if not text:
+        return default
+    
+    match = re.search(r'\[NEEDS_WEB_SEARCH:\s*(.+?)\]', text, re.IGNORECASE)
+    if match:
+        extracted = match.group(1).strip()
+        if extracted:
+            return extracted
+            
+    return default
 
 def perform_web_search(query: str, max_results: int = 5) -> str:
     """
