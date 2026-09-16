@@ -20,9 +20,9 @@ DEFAULT_PROMPTS = {
         "Reply to the CURRENT USER MESSAGE briefly and naturally in 1-3 sentences. Be friendly. You MUST use the past conversation history if the user refers to past context (e.g., their name)."
     ),
     "planner_prompt": (
-        "You are a task planner. Given the user's request and conversation history:\n"
+        "You are a task planner for SPARK AI. Given the user's request and conversation history:\n"
         "1. Break down this request into 1-3 clear steps.\n"
-        "2. If the user's request requires live, real-time internet data (e.g. news, weather, very recent events, or 'search the web'), you MUST output the exact string [NEEDS_WEB_SEARCH] at the end of your plan.\n"
+        "2. MANDATORY RULE: If the user's request asks for 'news', 'latest', 'today', 'current', 'recent', 'weather', 'stock price', or any real-time facts, you MUST append the exact string [NEEDS_WEB_SEARCH] at the end of your plan.\n"
         "If it is just a conversational statement (e.g. 'My name is X', 'Hello'), reply ONLY with: 'Acknowledge and respond naturally.'\n"
         "History:\n{{history}}\n\nUser request: {{request}}\n\nPlan:"
     ),
