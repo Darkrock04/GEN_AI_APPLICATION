@@ -11,10 +11,22 @@ Every user message flows through a **LangGraph StateGraph** — a directed graph
 | Request Type | Total LLM Calls | Path |
 |---|---|---|
 | Simple greeting ("hello") | **1** | Security (keyword only) → Quick Response |
-| Complex query (local info) | **5** | Security + Planner + Router + Worker + Validator |
-| Complex query (live web search) | **6** | Security + Planner + Web Search + Router + Worker + Validator |
+| Complex query (local RAG, relevant docs) | **6** | Security + Planner + Document Grader + Router + Worker + Validator |
+| Complex query (CRAG: irrelevant docs → web search) | **6** | Security + Planner + Document Grader + Web Search + Router + Worker + Validator |
+| Complex query (live web search requested) | **6** | Security + Planner + Web Search + Router + Worker + Validator |
+| Complex query (Self-RAG: cutoff detected → web search) | **7** | Security + Planner + Router + Worker + Web Search + Worker retry + Validator |
 | Complex + evaluator | **+1** | Above + Evaluator (long responses only) |
-| Complex + 1 retry | **+1** | Above + Worker retry + Validator |
+| Complex + 1 validation retry | **+1** | Above + Worker retry + Validator |
+
+---
+
+## Enterprise Corrective RAG (CRAG) & Self-RAG Architecture
+
+SPARK AI implements an **adaptive, self-correcting agentic graph** that actively eliminates hallucinations, outdated cutoff disclaimers, and irrelevant document retrievals:
+1. **Dynamic Temporal Grounding:** Planner, Worker, and Validator are dynamically injected with the execution date (`{{current_date}}`).
+2. **Document Relevance Grader (`grade_documents`):** Every chunk retrieved from ChromaDB is evaluated by a fast evaluator (`gemini-3.1-flash-lite`) using `document_grader_prompt`. If the retrieved documents lack relevance to the user's specific question, the system dynamically pivots to live internet search via SearXNG.
+3. **Adaptive Self-Correction Loop:** If a worker LLM encounters a knowledge cutoff or missing data mid-generation and outputs `[NEEDS_WEB_SEARCH: <query>]` or cutoff apologies, `route_after_worker` intercepts the draft, triggers SearXNG web search, and re-invokes the worker with fresh web evidence.
+4. **Two-Stage Validation:** The validator assesses factual grounding and catches hallucinated or cutoff responses, rerouting to web search if ungrounded.
 
 ---
 
@@ -29,16 +41,17 @@ flowchart TD
     end
 
     subgraph LangfusePlane["Langfuse Control Plane"]
-        Registry["Prompt Registry (10 Prompts, 300s TTL Cache)"]
+        Registry["Prompt Registry (11 Prompts, 300s TTL Cache)"]
         TraceHandler["CallbackHandler (Session ID, Tags, Metadata)"]
         ScoreLogger["Quality Score Logger (quality_validation: 1.0 / 0.0)"]
     end
 
-    subgraph GraphExecution["LangGraph StateGraph"]
+    subgraph GraphExecution["LangGraph StateGraph (10 Nodes)"]
         Stress["stress_test_node\n(security_gate_prompt)"]
         Planner["planner_node\n(planner_prompt)"]
         WebSearch["web_search_node\n(SearXNG)"]
         Retrieve["retrieve_context_node\n(ChromaDB + Gemini Embeddings)"]
+        GradeDocs["grade_documents_node\n(document_grader_prompt)"]
         Router["router_node\n(router_prompt)"]
         Worker["worker_agent_node\n(worker_*_prompt)"]
         Validator["validation_node\n(validator_prompt)"]
@@ -49,6 +62,7 @@ flowchart TD
     TraceHandler --> Stress
     Registry -.->|Fetch Template & Link Gen| Stress
     Registry -.->|Fetch Template & Link Gen| Planner
+    Registry -.->|Fetch Template & Link Gen| GradeDocs
     Registry -.->|Fetch Template & Link Gen| Router
     Registry -.->|Fetch Template & Link Gen| Worker
     Registry -.->|Fetch Template & Link Gen| Validator
@@ -57,13 +71,19 @@ flowchart TD
     Stress --> Planner
     Planner -->|needs_web_search| WebSearch --> Retrieve
     Planner -->|standard| Retrieve
-    Retrieve --> Router
+    Retrieve --> GradeDocs
+    GradeDocs -->|IRRELEVANT / EMPTY| WebSearch
+    GradeDocs -->|RELEVANT| Router
+    WebSearch -->|if initial / crag| Router
     Router --> Worker
-    Worker --> Validator
+    Worker -->|Cutoff / Needs Web Search Detected| WebSearch
+    WebSearch -->|if self-correction loop| Worker
+    Worker -->|Draft Ready| Validator
     Validator -.->|Log Score| ScoreLogger
+    Validator -->|CUTOFF_DETECTED & not searched| WebSearch
     Validator -->|FAIL & attempt < 2| Worker
     Validator -->|PASS| Evaluator
-    Evaluator --> Output["Final Response + Citations + Timings"]
+    Evaluator --> Output["Final Grounded Response + Citations + Timings"]
 ```
 
 ### 1. Root Trace Instrumentation

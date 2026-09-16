@@ -235,8 +235,9 @@ NODE_LABELS = {
     "stress_test": "🔒 Security",
     "simple_answer": "💬 Reply",
     "planner": "📋 Planning",
-    "web_search": "🌐 Web Search",
     "retrieve": "🔍 Retrieval",
+    "grade_documents": "📑 Grading",
+    "web_search": "🌐 Web Search",
     "router": "🔀 Routing",
     "worker": "✍️ Generating",
     "validation": "✅ Validating",
@@ -244,7 +245,7 @@ NODE_LABELS = {
     "error": "❌ Error",
 }
 
-PIPELINE_STEPS = ["stress_test", "planner", "web_search", "retrieve", "router", "worker", "validation", "evaluation"]
+PIPELINE_STEPS = ["stress_test", "planner", "retrieve", "grade_documents", "web_search", "router", "worker", "validation", "evaluation"]
 
 
 def _backend_alive() -> bool:
