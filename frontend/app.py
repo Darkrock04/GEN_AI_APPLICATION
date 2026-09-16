@@ -257,8 +257,12 @@ def _backend_alive() -> bool:
 
 def _render_pipeline_stepper(completed_nodes: set, active_node: str = None):
     """Render horizontal pipeline stepper."""
+    if "simple_answer" in completed_nodes or active_node == "simple_answer":
+        steps = ["stress_test", "simple_answer"]
+    else:
+        steps = PIPELINE_STEPS
     parts = []
-    for i, step in enumerate(PIPELINE_STEPS):
+    for i, step in enumerate(steps):
         label = NODE_LABELS.get(step, step)
         if step in completed_nodes:
             parts.append(f'<span class="pipe-step done">✓ {label}</span>')
@@ -266,7 +270,7 @@ def _render_pipeline_stepper(completed_nodes: set, active_node: str = None):
             parts.append(f'<span class="pipe-step active">● {label}</span>')
         else:
             parts.append(f'<span class="pipe-step">{label}</span>')
-        if i < len(PIPELINE_STEPS) - 1:
+        if i < len(steps) - 1:
             parts.append('<span class="pipe-arrow">›</span>')
     return '<div class="pipeline-stepper">' + ''.join(parts) + '</div>'
 
@@ -439,24 +443,23 @@ if not st.session_state.messages:
             <div class="cap-icon">🧠</div>
             <div class="cap-title">Chat & Reason</div>
             <div class="cap-desc">
-                Multi-agent pipeline with planning, routing, validation, and evaluation.
+                Multi-agent pipeline with planning, dynamic routing, two-stage validation, and evaluation.
             </div>
         </div>
         <div class="cap-card">
             <div class="cap-icon">📑</div>
-            <div class="cap-title">Document RAG</div>
+            <div class="cap-title">Corrective RAG</div>
             <div class="cap-desc">
-                Upload PDFs or TXT files — chunks, indexes, and answers from your documents.
+                Upload PDFs/TXT — document relevance grading with automatic SearXNG web search fallback.
             </div>
         </div>
         <div class="cap-card">
             <div class="cap-icon">🔒</div>
-            <div class="cap-title">Security</div>
+            <div class="cap-title">Security & Safety</div>
             <div class="cap-desc">
-                Built-in content safety layer with multi-stage validation pipeline.
+                Built-in content safety gate with fast-path keyword detection and LLM audit.
             </div>
         </div>
-
     </div>
     """, unsafe_allow_html=True)
 
