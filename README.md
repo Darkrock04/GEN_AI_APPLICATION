@@ -1,175 +1,159 @@
-# ⚡ SPARK AI — Multi-Agent RAG Application
+# ⚡ SPARK AI — Dual-Brain Multi-Agent RAG Application
 
-A production-grade, multi-agent AI assistant powered by a **Multi-Cloud Architecture** (Nvidia NIM, Google Gemini, and Ollama Cloud). Features intelligent task routing, document RAG, and quality validation — optimized for speed and low-latency local deployment.
+A production-grade, enterprise **Dual-Process (System 1 + System 2) Multi-Agent AI Assistant** combining an ultra-fast, non-autoregressive **System 1 Decision Engine** (Laya with RLCD) with a **System 2 Generative Multi-Cloud Ensemble** (Google Gemini, Ollama Cloud, and Nvidia NIM). Features sub-second intent triage, calibrated Corrective RAG (CRAG), Universal Verification (hallucination detection), and stateful circuit-breaker resilience.
 
 
-
----
-
-## 📖 Project Overview
-
-SPARK AI is a robust Generative AI web application providing an advanced conversational interface. Unlike simple chatbots that rely on a single LLM, SPARK AI routes each request through a sophisticated, multi-agent pipeline powered by a **Multi-Cloud Architecture**. From intelligent task routing and creative generation to document-grounded RAG (Retrieval-Augmented Generation) and content safety validation, every agent is optimized for its specific role to deliver fast, highly accurate, and reliable responses.
 
 ---
 
-## ✨ Features
+## 📖 The Dual-Brain Paradigm (System 1 + System 2)
 
-| Feature | Description |
-|---------|-------------|
-| 🧠 **Chat & Reason** | Multi-agent pipeline with automated planning, dynamic routing, and two-stage validation |
-| 📑 **Corrective RAG (CRAG)** | Upload PDFs/TXT — document relevance grading with automatic SearXNG web search fallback |
-| 🔄 **Self-Reflective Anti-Hallucination** | Dynamic date grounding with mid-generation cutoff detection and live web search loopback |
-| 🔒 **Content Safety** | Two-stage security gate (keyword pre-filter + LLM fallback) |
-| ✅ **Quality Validation** | Consolidated relevance + factuality + coherence check with Langfuse trace scoring |
-| ⚡ **Specialized Workers** | Multi-cloud routing for coding (`gemini-3.5-flash`), creative, and general tasks (`gpt-oss:120b`) |
-| 🔄 **Session Memory** | Remembers your conversation within the current session via semantic summarization |
-| 📊 **Pipeline Streaming** | Real-time visibility into each processing stage with animated badges |
-| 🔭 **Langfuse Observability & Prompt Registry** | Full agent tracing, 11 managed/versioned prompts, generation linking, and automated quality scoring |
+Traditional multi-agent systems suffer from a heavy LLM monoculture: every simple greeting, routing check, or document relevance classification invokes a 30B–120B parameter autoregressive model, wasting 2–4 seconds and exhausting free-tier token quotas.
+
+SPARK AI breaks this bottleneck with a **Dual-Process Cognitive Architecture** inspired by Daniel Kahneman:
+* **System 1 (Reflex Arc — Laya Engine):** Non-autoregressive decision heads powered by **ModernBERT-large** (English) and **mmBERT-base** (100+ languages) fine-tuned via **Reinforcement Learning for Calibrated Decisions (RLCD)**. Operates in single-pass forward evaluations (~100–250ms), producing mathematically calibrated probability distributions without token generation.
+* **System 2 (Prefrontal Cortex — Generative Frontier Ensemble):** Deep, deliberative frontier models (Google Gemini 3.5 Flash, Gemini 3.1 Flash-Lite, Ollama Cloud GPT-OSS 120B, Mistral Small 24B, Llama 3.3 70B, and Nvidia Nemotron) for date-aware planning, complex code synthesis, creative writing, and multi-source document synthesis.
+
+---
+
+## ✨ Key Features
+
+| Feature | Category | Description |
+|---|---|---|
+| ⚡ **Dual-Brain Engine** | System 1 + 2 | Non-autoregressive RLCD decision heads paired with generative frontier LLMs. |
+| 🛡️ **Multilingual Triage** | System 1 (Laya) | Sub-second safety evaluation & automatic language routing for greetings across 100+ languages. |
+| 📑 **Corrective RAG (CRAG)** | Hybrid Retrieval | ChromaDB semantic search + BM25 keyword search, graded by Laya relevance scoring with SearXNG web search fallback. |
+| 🔬 **Universal Verification** | Self-RAG | Instant non-autoregressive factual verification and hallucination detection before output delivery. |
+| 🧠 **Deep Reason & Code** | System 2 (Multi-Agent) | Structured planning, dynamic intent dispatching, iterative self-correction, and synthesis. |
+| 🔒 **Circuit-Breaker Resilience** | High Availability | Stateful circuit breaker (5 failures / 15s cooldown) ensuring zero downtime and instant fallback to System 2 LLMs. |
+| 🔭 **Observability & Telemetry** | Control Plane | Langfuse central prompt registry, generation linking, latency/token tracing, and dual-brain decision telemetry. |
 
 ---
 
 <img width="1024" alt="arch" src="docs/images/architecture_v3.png" />
 
+---
 
+## 🤖 Models & Decision Primitives
 
+| Agent / Role | Cognitive System | Provider / Host | Model / Engine | Prompt / Primitive | Strategic Purpose |
+|---|---|---|---|---|---|
+| **Security Gate** | System 2 (Safety Guardrail) | Ollama Cloud | `nemotron-3-nano:30b` | `security_gate_prompt` | High-precision prompt injection and adversarial query audit. |
+| **Greeting Reflex** | System 1 (Reflex Arc) | Laya Self-Host | mmBERT-base / ModernBERT | `is_greeting: noul` | Instant sub-second greeting detection across 100+ languages. |
+| **Quick Greeter** | System 2 (Conversational) | Ollama Cloud | `gpt-oss:120b` | `simple_answer_prompt` | Natural, warm conversational greeting synthesis. |
+| **Planner** | System 2 (Reasoning) | Google (Gemini) | `gemini-3.1-flash-lite` | `planner_prompt` | Date-aware query decomposition & web search trigger. |
+| **Document Grader** | System 1 (Reflex Arc) | Laya Self-Host | ModernBERT-large | `doc_relevance: choice` + `score` | Corrective RAG (CRAG) calibrated document relevance grading. |
+| **Router Reflex** | System 1 (Reflex Arc) | Laya Self-Host | ModernBERT-large | `task_type: choice` | Calibrated non-autoregressive intent dispatching. |
+| **Worker (Coding)** | System 2 (Generative) | Google (Gemini) | `gemini-3.5-flash` | `worker_coding_prompt` | Production-grade code synthesis with strict execution tests. |
+| **Worker (Creative)** | System 2 (Generative) | Ollama Cloud | `gpt-oss:120b` | `worker_creative_prompt` | Unconstrained creative writing and brainstorming. |
+| **Worker (General)** | System 2 (Generative) | Ollama Cloud | `gpt-oss:120b` | `worker_general_prompt` | Comprehensive multi-source document synthesis. |
+| **Universal Verification** | System 1 (Reflex Arc) | Laya Self-Host | ModernBERT-large | `faithfulness: choice` | Instant non-autoregressive factual faithfulness verification. |
+| **Validator** | System 2 (Reasoning) | Google (Gemini) | `gemini-3.1-flash-lite` | `validator_prompt` | Multi-dimensional quality, relevance, and cutoff audit. |
+| **Evaluator** | System 2 (Generative) | Ollama Cloud | `nemotron-3-super` | `evaluator_prompt` | Final polish, math rendering, and LaTeX formatting. |
+| **Embeddings** | System 1 (Vector RAG) | Google (Gemini) | `gemini-embedding-001` | *(Vector Pipeline)* | 768-dimensional dense vector embeddings in ChromaDB. |
 
 ---
 
 ## 🚀 Quick Start
 
+### 1. Clone & Install
 ```bash
-# 1. Clone
 git clone https://github.com/Darkrock04/GEN_AI_APPLICATION.git
 cd GEN_AI_APPLICATION
 
-# 2. Install
+# Create and activate virtual environment
+python -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+
+# Install dependencies
 pip install -r requirements.txt
+```
 
-# 3. Configure API Keys
-# Create a .env file and set the following keys:
-# NVIDIA_API_KEY=your_key_here
-# OLLAMA_API_KEY=your_key_here
-# GEMINI_API_KEY=your_key_here
-# SEARXNG_URL=your_self_hosted_searxng_url
-# Langfuse Observability & Prompt Management:
-# LANGFUSE_PUBLIC_KEY=pk-lf-your_key
-# LANGFUSE_SECRET_KEY=sk-lf-your_key
-# LANGFUSE_HOST=https://cloud.langfuse.com
+### 2. Configure Environment (`.env`)
+```bash
+cp .env.example .env
+```
+Populate your `.env` file with the required keys:
+```env
+# System 1: Laya Decision Engine
+LAYA_BASE_URL=your_self_hosted_laya_url
+ENABLE_LAYA=true
+LAYA_TIMEOUT_SECONDS=3.5
 
-# 4. Start backend
-uvicorn backend.main:app --reload
+# System 2: Multi-Cloud Providers
+GEMINI_API_KEY=your_gemini_api_key
+OLLAMA_API_KEY=your_ollama_api_key
+OLLAMA_BASE_URL=https://ollama.com/v1
+NVIDIA_API_KEY=your_nvidia_api_key
 
-# 5. Start frontend (new terminal)
+# Live Web Search & Observability
+SEARXNG_URL=your_self_hosted_searxng_url
+LANGFUSE_PUBLIC_KEY=pk-lf-your_public_key
+LANGFUSE_SECRET_KEY=sk-lf-your_secret_key
+LANGFUSE_HOST=https://cloud.langfuse.com
+```
+
+### 3. Launch Services
+```bash
+# Terminal 1: Start FastAPI Backend
+uvicorn backend.main:app --reload --port 8000
+
+# Terminal 2: Start Streamlit Frontend
 streamlit run frontend/app.py
 ```
 
 ---
 
-## 🤖 Models
-
-| Agent | Provider | Model | Purpose |
-|---|---|---|---|
-| Security Gate | **Ollama** | `nemotron-3-nano:30b` | Fast SAFE/UNSAFE classification |
-| Quick Greeter | **Ollama** | `gpt-oss:120b` | Natural, instantaneous responses for greetings |
-| Planner | **Google** | `gemini-3.1-flash-lite` | Date-aware task decomposition & search planning |
-| Document Grader | **Google** | `gemini-3.1-flash-lite` | Corrective RAG (CRAG) binary document relevance grading |
-| Router | **Ollama** | `gemma4:31b` | Classify: coding/creative/general |
-| Worker (General) | **Ollama** | `gpt-oss:120b` | General generation & factual prose |
-| Worker (Creative) | **Ollama** | `gpt-oss:120b` | Creative writing & brainstorming |
-| Worker (Coding) | **Google** | `gemini-3.5-flash` | Code generation & deep technical synthesis |
-| Validator | **Google** | `gemini-3.1-flash-lite` | Factual grounding & cutoff auditing |
-| Evaluator | **Ollama** | `nemotron-3-super` | Polish & LaTeX formatting |
-| Embeddings | **Google** | `gemini-embedding-001` | Document RAG vectors |
-
-All models accessed via their respective free-tier/trial APIs.
-
----
-
-## 🔭 Langfuse Observability & Prompt Management
-
-SPARK AI utilizes **Langfuse** as a centralized observability engine and prompt control plane:
-
-- **11 Managed Prompts:** All agent prompts (`security_gate_prompt`, `simple_answer_prompt`, `planner_prompt`, `document_grader_prompt`, `router_prompt`, `worker_general_prompt`, `worker_coding_prompt`, `worker_creative_prompt`, `validator_prompt`, `evaluator_prompt`, `history_summarizer_prompt`) are managed in the Langfuse Prompt Registry.
-- **Auto-Seeding on Startup:** When the FastAPI server boots, `ensure_prompts_seeded()` automatically creates any missing prompts in Langfuse tagged `spark-ai` and labeled `production`.
-- **Zero-Downtime Hot-Swapping:** Prompts are fetched with a 300-second TTL cache. You can edit prompt templates or instructions directly in the Langfuse UI, and the live application updates within 5 minutes without restarting or redeploying.
-- **Generation-to-Prompt Linking:** Every LLM generation is tied to its prompt version in metadata, allowing you to track token consumption, cost, and latency per prompt iteration.
-- **Trace Quality Scoring:** The output of `validation_node` automatically logs an evaluation score (`quality_validation` = `1.0` or `0.0`) with validator feedback directly into the Langfuse trace.
-
----
-
-## 📁 Project Structure
+## 📁 Repository Structure
 
 ```
 SPARK-AI/
-├── app.py                      # Local and container launcher (FastAPI + Streamlit)
-├── requirements.txt            # Python dependencies (includes langfuse)
-├── .env                        # Environment variables (gitignored)
+├── app.py                      # Root launcher (FastAPI + Streamlit subprocesses)
+├── requirements.txt            # Python dependencies (LangGraph, Langfuse, ChromaDB, etc.)
+├── .env                        # Environment variables & API credentials (gitignored)
+├── .env.example                # Configuration template with Laya endpoint settings
 ├── backend/
-│   ├── api_models.py           # Pydantic request/response schemas
-│   ├── llm_factory.py          # Model registry & multi-cloud LLM initialization
-│   ├── graph_agent.py          # LangGraph multi-agent pipeline (core)
-│   ├── langfuse_prompt_manager.py # Prompt registry, auto-seeding, TTL cache & scoring
-│   ├── vector_store.py         # ChromaDB RAG engine with adaptive chunking
-│   ├── tools.py                # SearXNG live web search integration
-│   └── main.py                 # FastAPI server, startup seeding & endpoints
+│   ├── api_models.py           # Pydantic schemas (with dual-brain telemetry)
+│   ├── laya_client.py          # Laya System 1 Decision Client (circuit breaker & typed primitives)
+│   ├── llm_factory.py          # Multi-Cloud LLM factory (Gemini, Ollama Cloud, Nvidia NIM)
+│   ├── graph_agent.py          # LangGraph multi-agent pipeline (10 nodes, Dual-Brain orchestration)
+│   ├── langfuse_prompt_manager.py # Prompt registry, auto-seeding, 300s TTL cache & score logger
+│   ├── vector_store.py         # ChromaDB RAG engine with adaptive chunking & Gemini embeddings
+│   ├── tools.py                # SearXNG live web search client & query extraction
+│   └── main.py                 # FastAPI server, startup seeding & health endpoints
 ├── frontend/
-│   └── app.py                  # Streamlit chat UI
-├── 
-
-├── docs/                       # Detailed documentation
-└── chroma_db/                  # Vector database (gitignored)
+│   └── app.py                  # Streamlit chat UI with dual-brain stepper & badges
+├── docs/                       # Complete architectural manuals (01 through 07)
+│   └── images/                 # Architectural & RAG lifecycle visual diagrams
+└──                      # local environment 
 ```
 
 ---
 
+## 📡 API Endpoints
 
-
-## 📡 API Reference
-
-| Method | Path | Purpose |
-|--------|------|---------|
-| `GET` | `/health` | Backend health check |
-| `POST` | `/chat` | Synchronous chat (returns full response) |
-| `POST` | `/chat/stream` | Streaming chat (NDJSON, one event per pipeline node) |
-| `POST` | `/upload_doc` | Upload PDF/TXT for RAG |
-| `GET` | `/documents` | List uploaded documents |
-| `DELETE` | `/documents/{filename}` | Delete specific document |
-| `POST` | `/clear_session` | Wipe all data & start fresh |
-
----
-
-
-## 🔧 Session & Memory Behavior
-
-- **Current session:** AI remembers your entire conversation (last 10 messages sent as context)
-- **Page reload / tab close:** Everything is cleared — no persistent storage
-- **Clear Session button:** Wipes chat history, uploaded documents, and vector store
-
----
-
-## 📄 Document RAG Pipeline
-
-![Document RAG Pipeline](docs/images/rag_lifecycle_v2.png)
-
-| Document Size | Chunk Size | Overlap |
+| Method | Path | Description |
 |---|---|---|
-| ≤ 3 pages | 400 chars | 100 |
-| 4–10 pages | 600 chars | 150 |
-| 11–30 pages | 1000 chars | 200 |
-| 30+ pages | 1500 chars | 300 |
+| `GET` | `/health` | Backend health check (reports Laya and Multi-Cloud status) |
+| `POST` | `/chat` | Synchronous conversation with full dual-brain telemetry |
+| `POST` | `/chat/stream` | Streaming NDJSON updates broadcasting node-by-node execution |
+| `POST` | `/upload_doc` | Upload PDF/TXT for adaptive chunking and vector embedding |
+| `GET` | `/documents` | List uploaded documents and total chunk counts |
+| `DELETE` | `/documents/{filename}` | Delete a specific document and its vector embeddings |
+| `POST` | `/clear_session` | Rotate ChromaDB collection and wipe session state |
+| `GET` | `/analytics` | Cumulative session usage and latency metrics |
+| `POST` | `/export_chat` | Export conversation history to Markdown |
 
 ---
 
-## 📚 Documentation
+## 📚 Documentation Reference
 
-See [`docs/`](docs/) for detailed documentation:
+For comprehensive deep dives into each subsystem, refer to the [`docs/`](docs/) directory:
 
-1. [Project Overview](docs/01_Project_Overview.md)
-2. [Architecture & Workflow](docs/02_Architecture_and_Workflow.md)
-3. [Models & Agents](docs/03_Models_and_Agents.md)
-4. [Technical Modules](docs/04_Technical_Modules.md)
-5. [RAG Concepts](docs/05_RAG_Concepts.md)
-6. [Features Deep Dive](docs/06_Features_Deep_Dive.md)
-7. [API Reference](docs/07_API_Reference.md)
-
-
+1. [01 — Project Overview](docs/01_Project_Overview.md)
+2. [02 — Architecture & Multi-Agent Workflow](docs/02_Architecture_and_Workflow.md)
+3. [03 — Models & Agent Roles](docs/03_Models_and_Agents.md)
+4. [04 — Technical Modules Explained](docs/04_Technical_Modules.md)
+5. [05 — Dual-Brain RAG & CRAG](docs/05_RAG_Concepts.md)
+6. [06 — Features Deep Dive & Enterprise Innovations](docs/06_Features_Deep_Dive.md)
+7. [07 — API Reference](docs/07_API_Reference.md)

@@ -1,89 +1,90 @@
 # 02 — Architecture & Multi-Agent Workflow
 
-## How the Pipeline Works
+## The Dual-Brain Cognitive Architecture (System 1 + System 2)
 
-Every user message flows through a **LangGraph StateGraph** — a directed graph where each node is a specialized agent. Routing is dynamic based on the content of the request.
+SPARK AI implements a **Dual-Process Cognitive Architecture** inspired by Daniel Kahneman's model of human cognition:
+
+* **System 1 (Reflex Arc — Laya Engine):** An ultra-fast, non-autoregressive decision engine running ModernBERT-large (English) and mmBERT-base (100+ languages) fine-tuned via **Reinforcement Learning for Calibrated Decisions (RLCD)**. It operates in sub-second forward passes without streaming tokens, returning mathematically calibrated probabilities for safety triage, greeting detection, CRAG document relevance scoring, model routing, and Universal Verification.
+* **System 2 (Prefrontal Cortex — Generative Ensemble):** Slower, deliberate, multi-agent frontier models (Google Gemini 3.1 Flash-Lite, Gemini 3.5 Flash, Qwen 2.5 Coder 32B, Mistral Small 24B, Llama 3.3 70B, and Nvidia Nemotron) dedicated to task decomposition, query planning, code synthesis, creative writing, and factual critique.
 
 <img width="1024" alt="arch" src="images/architecture_v3.png" />
 
-## LLM Calls Per Request Type
+---
 
-| Request Type | Total LLM Calls | Path |
-|---|---|---|
-| Simple greeting ("hello") | **1** | Security (keyword only) → Quick Response |
-| Complex query (local RAG, relevant docs) | **6** | Security + Planner + Document Grader + Router + Worker + Validator |
-| Complex query (CRAG: irrelevant docs → web search) | **6** | Security + Planner + Document Grader + Web Search + Router + Worker + Validator |
-| Complex query (live web search requested) | **6** | Security + Planner + Web Search + Router + Worker + Validator |
-| Complex query (Self-RAG: cutoff detected → web search) | **7** | Security + Planner + Router + Worker + Web Search + Worker retry + Validator |
-| Complex + evaluator | **+1** | Above + Evaluator (long responses only) |
-| Complex + 1 validation retry | **+1** | Above + Worker retry + Validator |
+## Decision & Generation Load Distribution
+
+| Pipeline Phase | Primary Engine | Fallback Engine | Primitive Type | Typical Latency |
+|---|---|---|---|---|
+| **Safety Guardrail** | **Nvidia Nemotron** (`nemotron-3-nano:30b`) | Rule-based heuristics | Binary Audit | ~300ms |
+| **Greeting & Triage** | **System 1 (Laya)** | `SIMPLE_PATTERNS` regex | `is_greeting: noul` | ~150ms |
+| **Execution Planning** | **System 2 (Gemini)** (`gemini-3.1-flash-lite`) | Direct pass-through | Structured Text Plan | ~350ms |
+| **CRAG Document Grading** | **System 1 (Laya)** | **Gemini 3.1 Flash-Lite** | `doc_relevance: choice` & `score` | ~180ms |
+| **Worker Routing** | **System 1 (Laya)** | **Gemma-4 31B** (Ollama Cloud) | `task_type: choice` (`coding`, `creative`, `general`) | ~140ms |
+| **Code Generation** | **System 2 (Gemini / Qwen)** | Mistral / Llama | Autoregressive Token Stream | 2.0s – 5.0s |
+| **Universal Verification** | **System 1 (Laya)** | **Gemini 3.1 Flash-Lite** | `faithfulness: choice` (Claim check) | ~200ms |
+| **Final Polishing** | **System 2 (Nemotron 3 Super)** | Draft pass-through | Text Refinement | ~400ms |
 
 ---
 
-## Enterprise Corrective RAG (CRAG) & Self-RAG Architecture
-
-SPARK AI implements an **adaptive, self-correcting agentic graph** that actively eliminates hallucinations, outdated cutoff disclaimers, and irrelevant document retrievals:
-1. **Dynamic Temporal Grounding:** Planner, Worker, and Validator are dynamically injected with the execution date (`{{current_date}}`).
-2. **Document Relevance Grader (`grade_documents`):** Every chunk retrieved from ChromaDB is evaluated by a fast evaluator (`gemini-3.1-flash-lite`) using `document_grader_prompt`. If the retrieved documents lack relevance to the user's specific question, the system dynamically pivots to live internet search via SearXNG.
-3. **Adaptive Self-Correction Loop:** If a worker LLM encounters a knowledge cutoff or missing data mid-generation and outputs `[NEEDS_WEB_SEARCH: <query>]` or cutoff apologies, `route_after_worker` intercepts the draft, triggers SearXNG web search, and re-invokes the worker with fresh web evidence.
-4. **Two-Stage Validation:** The validator assesses factual grounding and catches hallucinated or cutoff responses, rerouting to web search if ungrounded.
-
----
-
-## Observability & Prompt Management in the Workflow
-
-Every execution of the LangGraph pipeline is observed and managed through Langfuse:
+## Dual-Process Workflow Diagram
 
 ```mermaid
 flowchart TD
-    subgraph Client["Client Interaction"]
+    subgraph ClientPlane["Client Interaction"]
         User["User Request"] --> Entry["FastAPI /chat or /chat/stream"]
     end
 
-    subgraph LangfusePlane["Langfuse Control Plane"]
-        Registry["Prompt Registry (11 Prompts, 300s TTL Cache)"]
-        TraceHandler["CallbackHandler (Session ID, Tags, Metadata)"]
-        ScoreLogger["Quality Score Logger (quality_validation: 1.0 / 0.0)"]
+    subgraph SystemOnePlane["⚡ System 1: Laya Decision Engine (Non-Autoregressive RLCD)"]
+        LayaTriage["🛡️ Greeting & Intent Reflex\n(is_greeting noul + multilingual)"]
+        LayaCRAG["📑 CRAG Relevance Scorer\n(doc_relevance choice + 0-2 score)"]
+        LayaRouter["🚦 Model Router Reflex\n(task_type choice: coding / creative / general)"]
+        LayaVerify["🔬 Universal Verification\n(faithfulness choice: faithful vs hallucinated)"]
     end
 
-    subgraph GraphExecution["LangGraph StateGraph (10 Nodes)"]
-        Stress["stress_test_node\n(security_gate_prompt)"]
-        Planner["planner_node\n(planner_prompt)"]
-        WebSearch["web_search_node\n(SearXNG)"]
-        Retrieve["retrieve_context_node\n(ChromaDB + Gemini Embeddings)"]
-        GradeDocs["grade_documents_node\n(document_grader_prompt)"]
-        Router["router_node\n(router_prompt)"]
-        Worker["worker_agent_node\n(worker_*_prompt)"]
-        Validator["validation_node\n(validator_prompt)"]
-        Evaluator["evaluation_node\n(evaluator_prompt)"]
+    subgraph SystemTwoPlane["🧠 System 2: Generative Multi-Cloud Ensemble"]
+        SafetyGate["🔒 Nemotron Guardrail\n(Prompt Injection & Toxic Audit)"]
+        FastReply["⚡ Quick Greeter\n(GPT-OSS 120B / Direct)"]
+        Planner["📋 Planner Node\n(Gemini 3.1 Flash-Lite)"]
+        WebSearch["🌐 SearXNG Web Search\n(Live Internet Grounding)"]
+        ChromaStore["📚 ChromaDB Hybrid Store\n(Gemini Embeddings + BM25)"]
+        CodingWorker["💻 Coding Worker\n(Gemini 3.5 Flash / Qwen 2.5 Coder)"]
+        CreativeWorker["🎨 Creative Worker\n(Mistral Small 24B)"]
+        GeneralWorker["📖 General Worker\n(Llama 3.3 70B / GPT-OSS 120B)"]
+        DeepValidator["✅ Deep Grounding Validator\n(Gemini 3.1 Flash-Lite)"]
+        Evaluator["✨ Final Polisher\n(Nemotron 3 Super)"]
     end
 
-    Entry --> TraceHandler
-    TraceHandler --> Stress
-    Registry -.->|Fetch Template & Link Gen| Stress
-    Registry -.->|Fetch Template & Link Gen| Planner
-    Registry -.->|Fetch Template & Link Gen| GradeDocs
-    Registry -.->|Fetch Template & Link Gen| Router
-    Registry -.->|Fetch Template & Link Gen| Worker
-    Registry -.->|Fetch Template & Link Gen| Validator
-    Registry -.->|Fetch Template & Link Gen| Evaluator
+    subgraph ObservabilityPlane["🔭 Control Plane (Langfuse)"]
+        Registry["Prompt Registry (11 Managed Prompts)"]
+        TraceHandler["Trace Callback (Session IDs, Tags, Timings)"]
+        ScoreLogger["Quality Score Logger"]
+    end
 
-    Stress --> Planner
-    Planner -->|needs_web_search| WebSearch --> Retrieve
-    Planner -->|standard| Retrieve
-    Retrieve --> GradeDocs
-    GradeDocs -->|IRRELEVANT / EMPTY| WebSearch
-    GradeDocs -->|RELEVANT| Router
-    WebSearch -->|if initial / crag| Router
-    Router --> Worker
-    Worker -->|Cutoff / Needs Web Search Detected| WebSearch
-    WebSearch -->|if self-correction loop| Worker
-    Worker -->|Draft Ready| Validator
-    Validator -.->|Log Score| ScoreLogger
-    Validator -->|CUTOFF_DETECTED & not searched| WebSearch
-    Validator -->|FAIL & attempt < 2| Worker
-    Validator -->|PASS| Evaluator
-    Evaluator --> Output["Final Grounded Response + Citations + Timings"]
+    Entry --> TraceHandler --> SafetyGate
+    SafetyGate -->|Safe| LayaTriage
+    SafetyGate -->|Unsafe| Blocked([Canned Safety Refusal])
+
+    LayaTriage -->|Greeting: True| FastReply --> Output([Final Grounded Response])
+    LayaTriage -->|Greeting: False| Planner
+
+    Planner -->|needs_web_search| WebSearch --> ChromaStore
+    Planner -->|standard| ChromaStore
+    ChromaStore --> LayaCRAG
+
+    LayaCRAG -->|Relevant / Score >= 1.0| LayaRouter
+    LayaCRAG -->|Irrelevant / Score < 1.0| WebSearch --> LayaRouter
+
+    LayaRouter -->|coding| CodingWorker
+    LayaRouter -->|creative| CreativeWorker
+    LayaRouter -->|general| GeneralWorker
+
+    CodingWorker & CreativeWorker & GeneralWorker -->|Draft Generated| LayaVerify
+    LayaVerify -->|Hallucination Detected >= 85%| WebSearch
+    LayaVerify -->|Faithful / Borderline| DeepValidator
+
+    DeepValidator -.->|Log Score| ScoreLogger
+    DeepValidator -->|FAIL & attempt < 2| CodingWorker
+    DeepValidator -->|PASS| Evaluator --> Output
 ```
 
 ### 1. Root Trace Instrumentation

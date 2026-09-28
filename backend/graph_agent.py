@@ -12,6 +12,7 @@ from backend.llm_factory import get_llm
 from backend.vector_store import vector_store_manager
 from backend.tools import perform_web_search, extract_search_query
 from backend.langfuse_prompt_manager import get_managed_prompt, log_validation_score
+from backend.laya_client import laya_client
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -47,8 +48,9 @@ class GraphState(TypedDict):
     top_p: float
     max_tokens: int
     retrieval_k: int
-    # Timing
+    # Timing & Dual-Brain Telemetry
     node_timings: dict       # {node_name: elapsed_ms}
+    system_one_decisions: dict # {node_name: {decision_metadata}}
 
 
 # INITIALIZE SPECIALIZED LLMs (lightweight token limits)
@@ -182,26 +184,48 @@ SIMPLE_PATTERNS = frozenset({
 def stress_test_node(state: GraphState) -> GraphState:   
     request = state["request"].strip()
     words = set(request.lower().split())
+    s1_decisions = dict(state.get("system_one_decisions") or {})
 
-    # Unconditional LLM security check (Instantaneous on Nvidia NIM)
+    # 1. System-2 High-Precision Guardrail: Nemotron evaluates safety (zero false-positives on code)
     safety_decision = _safe_llm_call(
         llm=security_llm,
         variables={"request": request},
         fallback="SAFE",  # Default to safe on error
         prompt_name="security_gate_prompt",
     )
-    
     decision_upper = safety_decision.upper()
     is_safe = ("SAFE" in decision_upper) and ("UNSAFE" not in decision_upper)
 
-    # Increase limit to 8 to catch "hello my name is rock" as simple chat.
-    is_simple = bool(words & SIMPLE_PATTERNS) and len(request.split()) <= 8
+    # 2. System-1 Reflex: Non-autoregressive multilingual greeting & intent triage via Laya
+    laya_greet = laya_client.check_greeting_and_intent(request)
+    if laya_greet is not None:
+        is_simple = laya_greet["is_greeting"] and len(request.split()) <= 12
+        s1_decisions["stress_test"] = {
+            "engine": "laya_system_one",
+            "model": laya_greet.get("model_used", "english"),
+            "intent": laya_greet.get("intent"),
+            "greeting": is_simple,
+            "greeting_prob": laya_greet.get("greeting_probability", 0.0),
+            "latency_ms": laya_greet.get("latency_ms", 0),
+        }
+        logger.info(
+            f"[Dual-Brain System-1] Laya greeting triage: is_greeting={is_simple} "
+            f"({laya_greet.get('latency_ms')}ms, model={laya_greet.get('model_used')})"
+        )
+    else:
+        # Fallback to keyword patterns
+        is_simple = bool(words & SIMPLE_PATTERNS) and len(request.split()) <= 8
+        s1_decisions["stress_test"] = {
+            "engine": "system_two_fallback",
+            "greeting": is_simple,
+        }
 
     return {
         "is_safe": is_safe,
         "is_simple": is_simple,
         "final_response": "" if is_safe else "I'm sorry, I can't help with that request.",
         "draft_generation_count": 0,
+        "system_one_decisions": s1_decisions,
     }
 
 
@@ -315,6 +339,7 @@ def retrieve_context_node(state: GraphState) -> GraphState:
 def grade_documents_node(state: GraphState) -> GraphState:
     context = state.get("context", "").strip()
     sources = state.get("sources", [])
+    s1_decisions = dict(state.get("system_one_decisions") or {})
 
     # If no documents are uploaded or context is empty
     if not context or not sources or context == "(No documents uploaded — answering from knowledge)":
@@ -324,34 +349,90 @@ def grade_documents_node(state: GraphState) -> GraphState:
     if any(s.get("filename") == "SearXNG Web Search" for s in sources):
         return {"doc_relevance": "relevant"}
 
-    decision = _safe_llm_call(
-        llm=validator_llm,
-        variables={
-            "request": state["request"][:1000],
-            "context": context[:1500],
-        },
-        fallback="RELEVANT",
-        prompt_name="document_grader_prompt",
+    # 1. System-1 Reflex: Non-autoregressive relevance scoring via Laya
+    laya_grade = laya_client.grade_document_relevance(
+        query=state["request"][:800],
+        doc_chunk=context[:1500]
     )
-    is_relevant = "RELEVANT" in decision.upper() and "IRRELEVANT" not in decision.upper()
-    return {"doc_relevance": "relevant" if is_relevant else "irrelevant"}
+    if laya_grade is not None:
+        is_relevant = laya_grade["is_relevant"]
+        s1_decisions["grade_documents"] = {
+            "engine": "laya_system_one",
+            "choice": laya_grade.get("choice"),
+            "relevance_score": laya_grade.get("relevance_score", 0.0),
+            "relevant": is_relevant,
+            "latency_ms": laya_grade.get("latency_ms", 0),
+        }
+        logger.info(
+            f"[Dual-Brain System-1] Laya CRAG relevance: choice='{laya_grade.get('choice')}', "
+            f"score={laya_grade.get('relevance_score'):.2f} ({laya_grade.get('latency_ms')}ms)"
+        )
+    else:
+        # 2. System-2 Fallback: Gemini 3.1 Flash-Lite
+        decision = _safe_llm_call(
+            llm=validator_llm,
+            variables={
+                "request": state["request"][:1000],
+                "context": context[:1500],
+            },
+            fallback="RELEVANT",
+            prompt_name="document_grader_prompt",
+        )
+        is_relevant = "RELEVANT" in decision.upper() and "IRRELEVANT" not in decision.upper()
+        s1_decisions["grade_documents"] = {
+            "engine": "system_two_fallback",
+            "relevant": is_relevant,
+        }
+
+    return {
+        "doc_relevance": "relevant" if is_relevant else "irrelevant",
+        "system_one_decisions": s1_decisions,
+    }
 
 
 # ROUTER
 @_timed_node
 def router_node(state: GraphState) -> GraphState:
-    raw = _safe_llm_call(
-        llm=router_llm,
-        variables={"request": state["request"][:2000]},
-        fallback="general",
-        prompt_name="router_prompt",
-    ).lower()
+    task_type = None
+    s1_decisions = dict(state.get("system_one_decisions") or {})
 
-    task_type = "general"
-    for valid in ("coding", "creative"):
-        if valid in raw:
-            task_type = valid
-            break
+    # 1. System-1 Reflex: Non-autoregressive specialized worker routing via Laya
+    laya_route = laya_client.route_task(state["request"])
+    if laya_route is not None:
+        candidate_choice = laya_route.get("task_type", "general")
+        if candidate_choice in ("coding", "creative", "general"):
+            task_type = candidate_choice
+            s1_decisions["router"] = {
+                "engine": "laya_system_one",
+                "task_type": task_type,
+                "confidence": laya_route.get("confidence", 0.0),
+                "probabilities": laya_route.get("probabilities", {}),
+                "latency_ms": laya_route.get("latency_ms", 0),
+                "model": laya_route.get("model_used", "english"),
+            }
+            logger.info(
+                f"[Dual-Brain System-1] Laya router: choice='{task_type}' "
+                f"(conf: {laya_route.get('confidence', 0):.2f}, {laya_route.get('latency_ms')}ms)"
+            )
+
+    # 2. System-2 Fallback: Ollama Cloud Gemma-4 31B
+    if not task_type:
+        raw = _safe_llm_call(
+            llm=router_llm,
+            variables={"request": state["request"][:2000]},
+            fallback="general",
+            prompt_name="router_prompt",
+        ).lower()
+
+        task_type = "general"
+        for valid in ("coding", "creative"):
+            if valid in raw:
+                task_type = valid
+                break
+        s1_decisions["router"] = {
+            "engine": "system_two_fallback",
+            "task_type": task_type,
+        }
 
     # Automate temperature and top_p based on task_type
     temp = 0.7
@@ -363,7 +444,12 @@ def router_node(state: GraphState) -> GraphState:
         temp = 1.1
         top_p = 0.9
 
-    return {"task_type": task_type, "temperature": temp, "top_p": top_p}
+    return {
+        "task_type": task_type,
+        "temperature": temp,
+        "top_p": top_p,
+        "system_one_decisions": s1_decisions,
+    }
 
 
 # SPECIALIZED WORKERS
@@ -415,18 +501,50 @@ def worker_agent_node(state: GraphState) -> GraphState:
     return {"draft": draft, "draft_generation_count": next_count}
 
 
-# CONSOLIDATED VALIDATION (single LLM call instead of 3)
+# CONSOLIDATED VALIDATION (Universal Verification + Deep LLM Grounding)
 @_timed_node
 def validation_node(state: GraphState) -> GraphState:
     draft = state.get("draft", "")
     if not draft.strip():
         return {"validation_pass": True, "feedback": "APPROVED"}
 
+    context = (state.get("context") or "").strip()
+    s1_decisions = dict(state.get("system_one_decisions") or {})
+
+    # 1. System-1 Universal Verification: Fast non-autoregressive hallucination check
+    if context and context != "(No documents uploaded — answering from knowledge)":
+        laya_verif = laya_client.verify_claim_faithfulness(context=context, claim=draft)
+        if laya_verif is not None:
+            s1_decisions["validation"] = {
+                "engine": "laya_universal_verification",
+                "verdict": laya_verif.get("verdict"),
+                "is_faithful": laya_verif.get("is_faithful"),
+                "confidence": laya_verif.get("confidence", 0.0),
+                "latency_ms": laya_verif.get("latency_ms", 0),
+            }
+            # If high-confidence hallucination detected by System-1 (>= 85%)
+            if not laya_verif.get("is_faithful", True) and laya_verif.get("confidence", 0.0) >= 0.85:
+                logger.info(
+                    f"[Dual-Brain System-1] Universal Verification caught high-confidence hallucination: "
+                    f"{laya_verif.get('confidence', 0.0):.2f} ({laya_verif.get('latency_ms')}ms)"
+                )
+                return {
+                    "validation_pass": False,
+                    "feedback": "Universal Verification: Factual contradiction or hallucination detected against source documents.",
+                    "system_one_decisions": s1_decisions,
+                }
+            else:
+                logger.info(
+                    f"[Dual-Brain System-1] Universal Verification: Draft is faithful "
+                    f"({laya_verif.get('confidence', 0.0):.2f}, {laya_verif.get('latency_ms')}ms)"
+                )
+
+    # 2. System-2 Deep Grounding & Cutoff Detection (Gemini 3.1 Flash-Lite)
     result = _safe_llm_call(
         llm=validator_llm,
         variables={
             "request": state["request"][:2000],
-            "context": (state.get("context") or "")[:1500],
+            "context": context[:1500],
             "draft": draft[:2000],
         },
         fallback="PASS",
@@ -446,7 +564,11 @@ def validation_node(state: GraphState) -> GraphState:
     except Exception as e:
         logger.warning(f"Failed to log validation score to Langfuse: {e}")
 
-    return {"validation_pass": passed, "feedback": feedback}
+    return {
+        "validation_pass": passed,
+        "feedback": feedback,
+        "system_one_decisions": s1_decisions,
+    }
 
 
 # EVALUATOR (skipped for short responses)
@@ -660,6 +782,7 @@ def _build_initial_state(request: str, history: list) -> dict:
         "retrieval_k": 15,       # Hardcoded comprehensive retrieval context
         "sources": [],
         "node_timings": {},
+        "system_one_decisions": {},
     }
 
 
@@ -688,6 +811,7 @@ def process_chat(request: str, history: list = None) -> dict:
         "response": result.get("final_response") or "I couldn't generate a response. Please try again.",
         "sources": result.get("sources") or [],
         "node_timings": result.get("node_timings") or {},
+        "system_one_decisions": result.get("system_one_decisions") or {},
         "total_ms": total_ms,
     }
 

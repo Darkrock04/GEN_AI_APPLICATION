@@ -13,6 +13,7 @@ from backend.api_models import (
 from backend.graph_agent import process_chat, stream_graph_updates
 from backend.langfuse_prompt_manager import ensure_prompts_seeded
 from backend.vector_store import vector_store_manager, SUPPORTED_EXTENSIONS, MAX_FILE_SIZE_BYTES
+from backend.laya_client import laya_client
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -97,9 +98,13 @@ async def health_check():
         vs_status = "degraded"
         total_chunks = 0
 
+    laya_online = laya_client.is_available
+
     return {
         "status": "ok",
-        "llm_provider": "multi-cloud",
+        "llm_provider": "multi-cloud-dual-process",
+        "system_one_engine": "laya-non-autoregressive" if laya_online else "laya-offline-standby",
+        "laya_status": "online" if laya_online else "standby",
         "uptime": f"{hours}h {minutes}m {seconds}s",
         "uptime_seconds": uptime_seconds,
         "vector_store": vs_status,
@@ -152,6 +157,7 @@ async def chat_endpoint(request: ChatRequest):
             status="success",
             sources=sources,
             response_time_ms=total_ms,
+            system_one_decisions=result.get("system_one_decisions") or {},
         )
     except Exception as e:
         logger.error(f"Chat error: {e}", exc_info=True)

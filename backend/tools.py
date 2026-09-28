@@ -28,7 +28,7 @@ def perform_web_search(query: str, max_results: int = 5) -> str:
     """
     Queries the self-hosted SearXNG instance and returns a formatted markdown string of results.
     """
-    searxng_url = os.getenv("SEARXNG_URL", "your_self_hosted_searxng_url").rstrip("/")
+    searxng_url = os.getenv("SEARXNG_URL", "").rstrip("/")
     if not searxng_url:
         logger.warning("SEARXNG_URL is not set. Web search is disabled.")
         return ""

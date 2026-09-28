@@ -34,6 +34,7 @@ class ChatResponse(BaseModel):
     sources: Optional[List[SourceChunk]] = []
     token_usage: Optional[TokenUsage] = None
     response_time_ms: Optional[int] = None
+    system_one_decisions: Optional[dict] = None
 
 
 class DocumentUploadResponse(BaseModel):

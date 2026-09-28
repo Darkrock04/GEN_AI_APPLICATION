@@ -1,87 +1,165 @@
 # 04 — Technical Modules Explained
 
-## Backend Modules
+## Backend Architecture & Module Directory
 
-### 1. `llm_factory.py` — Multi-Cloud Model Factory
-**Purpose:** Central registry mapping specialized agent roles to multi-cloud LLM providers (Ollama Cloud, Google Gemini, Nvidia NIM).
+SPARK AI's backend is modularized to cleanly decouple System 1 reflexive decisions, System 2 generative reasoning, vector retrieval, and prompt observability.
 
-- Contains the `AGENT_CONFIG` dictionary mapping roles to cloud providers and models
-- Initializes `ChatOpenAI` for Ollama Cloud / Nvidia NIM and `ChatGoogleGenerativeAI` for Google Gemini
-- Configures default max token limits per role (e.g., 16 tokens for router, 64 for security, 2048 for workers)
-- Includes strict timeouts and retry logic for high resilience
+```
+backend/
+├── laya_client.py             # System 1 non-autoregressive decision client & circuit breaker
+├── graph_agent.py             # LangGraph stateful orchestrator (10 nodes, Dual-Process workflow)
+├── llm_factory.py             # Multi-Cloud LLM factory (Gemini, Ollama Cloud, Nvidia NIM)
+├── langfuse_prompt_manager.py # Prompt registry, auto-seeding, 300s TTL cache & score logger
+├── vector_store.py            # ChromaDB RAG engine with adaptive chunking & Gemini embeddings
+├── tools.py                   # SearXNG live web search client & query extraction
+├── api_models.py              # Pydantic v2 data transfer schemas with dual-brain telemetry
+└── main.py                    # FastAPI server, startup hooks & dual-brain endpoints
+```
 
-### 2. `langfuse_prompt_manager.py` — Prompt Registry & Quality Scoring
-**Purpose:** Central prompt management plane and evaluation logger for Langfuse.
+---
 
-- **`DEFAULT_PROMPTS`:** Catalog of all 11 system prompts in Langfuse `{{variable}}` mustache format (including `document_grader_prompt` for CRAG)
-- **`ensure_prompts_seeded()`:** Application boot utility that creates any missing prompts in Langfuse labeled `production` and tagged `spark-ai`
-- **`get_managed_prompt(name)`:** High-performance prompt fetcher with a 300-second TTL cache, returning both the LangChain `{var}` template string and the Langfuse prompt object for trace linking
-- **`log_validation_score()`:** Logs automated numeric scores (`quality_validation` = `1.0` / `0.0`) with validator feedback into Langfuse traces
+## Technical Module Deep Dives
 
-### 3. `graph_agent.py` — Multi-Agent Pipeline (Core)
-**Purpose:** The brain of the application. Defines the LangGraph StateGraph connecting all 10 agent nodes with Corrective RAG and self-reflection loops.
+### 1. `laya_client.py` — System 1 Decision Client & Circuit Breaker
+**Purpose:** Acts as the high-speed gateway to the self-hosted Laya Decision Engine (`/v1/systemone`). Encapsulates non-autoregressive decision primitives and provides bulletproof circuit-breaker protection against downstream timeouts or cold starts.
 
-**Key components:**
-- `GraphState` — TypedDict tracking request, history, current_date, safety, plan, doc_relevance, context, sources, task type, draft, validation status, and node timings
-- `_safe_llm_call()` — Resilient wrapper that fetches managed prompts from Langfuse, binds dynamic parameters, attaches prompt linking metadata, and handles rate-limit backoffs
-- `stress_test_node()` — Two-stage security check (instant keyword check + LLM fallback using `security_gate_prompt`)
-- `simple_answer_node()` — Conversational greeting fast path using `simple_answer_prompt`
-- `planner_node()` — Date-aware task decomposition and search intent detection using `planner_prompt`
-- `retrieve_context_node()` — ChromaDB RAG retrieval with source citation metadata
-- `grade_documents_node()` — Corrective RAG (CRAG) document relevance grading using `document_grader_prompt`
-- `web_search_node()` — SearXNG live web retrieval triggered by planner, document grader, or worker self-reflection
-- `router_node()` — Task classification into coding/creative/general using `router_prompt`
-- `worker_agent_node()` — Specialized generation using `worker_general_prompt`, `worker_coding_prompt`, or `worker_creative_prompt` with dynamic date grounding and cutoff self-reflection
-- `validation_node()` — Two-stage quality evaluation (factual grounding + cutoff detection) using `validator_prompt`
-- `evaluation_node()` — Final polish and LaTeX/Markdown formatting using `evaluator_prompt`
-- `_build_history_str()` — Semantic memory compression using `history_summarizer_prompt`
-- `process_chat()` / `stream_graph_updates()` — Public entry points injecting Langfuse `CallbackHandler` with session IDs, trace names, and tags
+#### Circuit Breaker Pattern (`LayaCircuitBreaker`)
+- **Failure Threshold:** 5 consecutive connection failures or timeouts (>3.5s).
+- **Cooldown Window:** 15.0 seconds.
+- **Fail-Open Behavior:** When the circuit is OPEN, calls return `None` in `0.0ms` without making any network request, allowing the pipeline to immediately proceed with System 2 fallback LLMs.
+- **Thread Safety:** Implements thread locks around state transitions (`CLOSED` ↔ `OPEN` ↔ `HALF_OPEN`).
 
-### 4. `tools.py` — Web Search Integration
-**Purpose:** Interfaces with a live SearXNG instance for real-time internet data retrieval.
+#### Core Decision Primitives
+```python
+# 1. Greeting & Intent Reflex (Multilingual)
+is_greeting, confidence, telemetry = laya_client.check_greeting_and_intent(user_text)
 
-- `perform_web_search(query)`: Queries SearXNG REST API, extracts page snippets and URLs, and formats them into context blocks for workers
-- `extract_search_query(text, default)`: Extracts focused search queries from `[NEEDS_WEB_SEARCH: query]` directives and cleans conversational prefixes
+# 2. Corrective RAG (CRAG) Relevance Grading
+is_relevant, score, confidence, telemetry = laya_client.grade_document_relevance(query, doc_text)
 
-### 5. `vector_store.py` — RAG Engine
-**Purpose:** Document ingestion, embedding, storage, and retrieval using ChromaDB.
+# 3. Non-Autoregressive Task Router
+task_type, confidence, telemetry = laya_client.route_task(user_text)
 
-**Key features:**
-- Google Gemini embeddings via `models/gemini-embedding-001`
-- Adaptive chunking based on page count and text density (400–1500 chars)
-- Semantic separators (`\n\n`, `\n`, `. `) for natural boundary splits
-- Source citation metadata enrichment (filename, page, content preview, relevance rank)
-- Duplicate detection (prevents re-embedding existing files)
-- Ephemeral collection rotation on session reset (Windows file-lock safe)
+# 4. Universal Verification (Hallucination Detection)
+is_faithful, confidence, telemetry = laya_client.verify_claim_faithfulness(query, context, draft)
+```
 
-### 6. `main.py` — FastAPI Server
-**Purpose:** HTTP API layer connecting the frontend to the pipeline.
+---
 
-**Key features:**
-- `@app.on_event("startup")` hook to auto-seed Langfuse prompts on boot
-- Synchronous (`/chat`) and streaming NDJSON (`/chat/stream`) endpoints
-- Document upload, retrieval, and deletion endpoints
-- Session analytics tracking and Markdown chat export
+### 2. `graph_agent.py` — LangGraph Multi-Agent Orchestrator
+**Purpose:** The central cognitive engine. Implements a LangGraph `StateGraph` coordinating 10 specialized nodes through a Dual-Process (System 1 + System 2) execution graph with automated self-reflection loops.
 
-### 7. `api_models.py` — Pydantic Schemas
-**Purpose:** Type-safe request/response models for the API.
+#### State Tracking (`GraphState`)
+Tracks request state across the pipeline:
+- `user_request`: Original prompt.
+- `chat_history`: Multi-turn conversational context.
+- `is_safe` & `safety_feedback`: Safety audit results.
+- `plan`: Date-aware task plan generated by planner.
+- `context` & `sources`: Retrieved document chunks and citations.
+- `doc_relevance`: CRAG classification (`RELEVANT` / `IRRELEVANT`).
+- `task_type`: Routing destination (`coding`, `creative`, `general`).
+- `draft_response`: Initial draft generated by specialized worker.
+- `validation_pass` & `validation_feedback`: Factuality and cutoff audit.
+- `final_response`: Polished markdown/LaTeX output.
+- `system_one_decisions`: Dictionary capturing all System 1 decisions and confidence scores for telemetry and frontend badges.
 
-- `ChatRequest` — message + history + dynamic inference controls
-- `ChatResponse` — response text + source citations + timings + status
-- `DocumentUploadResponse` — message + chunks_added
-- `DocumentInfo` / `SessionStatusResponse` — document listing
-- `SourceChunk` — citation metadata (filename, page, preview, rank)
+#### Node-by-Node Execution Mechanics
+1. **`stress_test_node` (Safety & Triage):**
+   - Stage 1: Nvidia Nemotron (`nemotron-3-nano:30b`) checks for adversarial prompt injections, jailbreaks, and harmful content.
+   - Stage 2: System 1 (Laya) evaluates `is_greeting: noul` to identify greetings across 100+ languages in ~150ms. If true, bypasses heavy planning and routes to `simple_answer_node`.
+2. **`simple_answer_node` (Fast Greeting Greeter):**
+   - Synthesizes conversational, friendly greetings using `simple_answer_prompt` without loading document vectors.
+3. **`planner_node` (Execution Planning):**
+   - Date-aware task decomposition using `gemini-3.1-flash-lite`. Determines if the query requires live web search or internal document retrieval.
+4. **`retrieve_context_node` (ChromaDB Retrieval):**
+   - Queries ChromaDB using Gemini embeddings. Formats retrieved chunks with rich citation metadata (`source_file`, `page`, `rank`).
+5. **`grade_documents_node` (CRAG Relevance Grader):**
+   - Primary: System 1 (Laya) performs non-autoregressive relevance grading (`doc_relevance: choice` and `relevance_score: score`).
+   - Fallback: System 2 (`gemini-3.1-flash-lite`) via `document_grader_prompt` if Laya is offline or circuit is open.
+   - Decision: If irrelevant or score < 1.0, flags context for live SearXNG web search.
+6. **`web_search_node` (SearXNG Internet Grounding):**
+   - Queries SearXNG REST API, extracts snippets and source URLs, and appends live ground truth to the context.
+7. **`router_node` (Worker Dispatcher):**
+   - Primary: System 1 (Laya) classifies `task_type` into `coding`, `creative`, or `general` with calibrated probabilities in ~140ms.
+   - Fallback: System 2 (`gemma4:31b`) via `router_prompt`.
+8. **`worker_agent_node` (Specialized Worker Synthesis):**
+   - Dispatches to specialized workers:
+     - `coding`: `gemini-3.5-flash` with strict code syntax requirements.
+     - `creative`: `gpt-oss:120b` for expansive creative prose.
+     - `general`: `gpt-oss:120b` for structured factual synthesis.
+   - Includes dynamic cutoff self-reflection: if the worker emits `[NEEDS_WEB_SEARCH: query]`, the graph loops to `web_search_node`.
+9. **`validation_node` (Universal Verification & Deep Grounding):**
+   - Primary: System 1 (Laya) runs Universal Verification (`faithfulness: choice`). If confidence of hallucination is ≥ 85%, fails immediately to trigger grounding.
+   - Deep Audit: System 2 (`gemini-3.1-flash-lite`) executes multi-dimensional relevance, factuality, and knowledge cutoff check using `validator_prompt`.
+   - Telemetry: Automatically logs numeric quality score (`1.0` or `0.0`) to Langfuse.
+10. **`evaluation_node` (Final Polish & Math Rendering):**
+    - Polishes response using `nemotron-3-super` via `evaluator_prompt`. Formats LaTeX equations (`$$...$$`), verifies code syntax blocks, and ensures clean markdown.
 
-## Frontend
+---
 
-### `frontend/app.py` — Streamlit Chat UI
-**Purpose:** Modern chat interface with SPARK AI branding.
+### 3. `llm_factory.py` — Multi-Cloud LLM Factory
+**Purpose:** Provides a centralized registry initializing and configuring LLM clients across Google AI Studio, Ollama Cloud, and Nvidia NIM.
 
-**Features:**
-- Dark glassmorphism theme with Outfit font
-- Welcome screen with capability cards
-- Auto-upload document processing (no manual button)
-- Document list with individual delete buttons
-- Pipeline stage streaming (human-readable node names)
-- Session clear on page reload
-- Graceful timeout/error handling with user-friendly messages
+- **`AGENT_CONFIG`:** Central dictionary mapping logical roles to target cloud providers, model IDs, and default token limits.
+- **Provider Adapters:**
+  - `ChatGoogleGenerativeAI` for Google Gemini models.
+  - `ChatOpenAI` targeting Ollama Cloud (`https://ollama.com/v1`) or Nvidia NIM (`https://integrate.api.nvidia.com/v1`).
+- **Resilient Fallback:** Automatically falls back to local Ollama instances (`http://localhost:11434/v1`) if cloud API keys are absent during local testing.
+
+---
+
+### 4. `langfuse_prompt_manager.py` — Prompt Registry & Trace Scoring
+**Purpose:** Enterprise prompt management and trace evaluation layer interfacing with Langfuse.
+
+- **`DEFAULT_PROMPTS`:** Catalog of 11 system prompts written in Langfuse mustache format (`{{variable}}`).
+- **`ensure_prompts_seeded()`:** Application boot utility that automatically registers any missing prompts in Langfuse tagged `spark-ai` and labeled `production`.
+- **`get_managed_prompt(name)`:** High-performance prompt fetcher with a 300-second TTL in-memory cache, enabling zero-downtime hot-swapping of system prompts.
+- **`log_validation_score()`:** Logs automated numeric scores (`quality_validation` = `1.0` / `0.0`) with validator feedback into active Langfuse traces.
+
+---
+
+### 5. `vector_store.py` — ChromaDB Hybrid RAG Engine
+**Purpose:** Document ingestion, semantic chunking, dense vector embedding, and hybrid retrieval.
+
+- **Adaptive Chunking:** Dynamically scales chunk size (400–1500 chars) and overlap (100–300 chars) based on document page count and character density.
+- **Dense Embeddings:** Powered by Google Gemini `models/gemini-embedding-001`.
+- **Ephemeral Session Isolation:** Supports collection rotation on session reset, preventing SQLite file lock contention on Windows systems.
+- **Deduplication:** Verifies existing file checksums to eliminate duplicate document embeddings.
+
+---
+
+### 6. `tools.py` — SearXNG Web Search Client
+**Purpose:** Interfaces with self-hosted SearXNG meta-search engine for real-time web retrieval.
+
+- **`perform_web_search(query)`:** Queries SearXNG REST API, parses search snippets and URLs, and formats structured context blocks.
+- **`extract_search_query(text)`:** Extracts clean search keywords from `[NEEDS_WEB_SEARCH: query]` directives emitted by planner or worker nodes.
+
+---
+
+### 7. `api_models.py` — Pydantic Schemas & Dual-Brain Telemetry
+**Purpose:** Type-safe HTTP request/response validation.
+
+- **`ChatRequest`:** User message, conversation history, and dynamic inference overrides (`temperature`, `top_p`, `max_tokens`, `retrieval_k`).
+- **`ChatResponse`:** Generated response text, source citations, timing metrics, and `system_one_decisions` telemetry payload.
+- **`SourceChunk`:** Citation metadata including `filename`, `page`, `content_preview`, and `relevance_rank`.
+
+---
+
+### 8. `main.py` — FastAPI Server & Health Endpoints
+**Purpose:** Asynchronous REST API layer exposing pipeline capabilities.
+
+- **`GET /health`:** Health check verifying vector store status, uptime, System 1 Laya engine connectivity, and System 2 multi-cloud availability.
+- **`POST /chat`:** Synchronous pipeline execution returning full response and telemetry.
+- **`POST /chat/stream`:** Streaming NDJSON endpoint broadcasting node-by-node updates and execution latencies.
+- **Document Endpoints:** `/upload_doc`, `/documents`, `/documents/{filename}`, `/clear_session`.
+- **`POST /export_chat`:** Exports active conversation history to formatted Markdown.
+
+---
+
+### 9. `frontend/app.py` — Streamlit Chat UI
+**Purpose:** Glassmorphism web interface featuring real-time dual-brain visualization.
+
+- **Dual-Brain Telemetry Badges:** Renders `⚡ Dual-Brain Active: System 1 (Laya Reflex) + System 2 (LLM Reasoning)` on messages powered by Laya.
+- **Pipeline Stepper:** Animated stage indicators tracking each active node in real time.
+- **Document Management:** Sidebar file uploader with chunk counters and single-click document deletion.
+- **Interactive Citations:** Collapsible source preview accordions linking generated answers directly to retrieved PDF/TXT chunks.

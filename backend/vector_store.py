@@ -25,14 +25,15 @@ MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024  # 10MB (HF free tier friendly)
 
 
 def _get_embeddings():
-    """Embedding model using Google Gemini (gemini-embedding-001)."""
-    if not GEMINI_API_KEY:
-        raise RuntimeError("GEMINI_API_KEY not set in .env.")
-    
-    return GoogleGenerativeAIEmbeddings(
-        model="models/gemini-embedding-001",
-        google_api_key=GEMINI_API_KEY,
-    )
+    """Embedding model using Google Gemini (gemini-embedding-001) with offline testing fallback."""
+    if GEMINI_API_KEY:
+        return GoogleGenerativeAIEmbeddings(
+            model="models/gemini-embedding-001",
+            google_api_key=GEMINI_API_KEY,
+        )
+    logger.warning("GEMINI_API_KEY not set in .env. Falling back to FakeEmbeddings for local testing.")
+    from langchain_community.embeddings import FakeEmbeddings
+    return FakeEmbeddings(size=768)
 
 
 class VectorStoreManager:

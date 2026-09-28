@@ -56,6 +56,15 @@ def get_llm(agent_type: str, max_tokens: int = 4096) -> BaseChatModel:
         
     elif provider == "google":
         if not GEMINI_API_KEY:
+            if OLLAMA_API_KEY:
+                return ChatOpenAI(
+                    api_key=OLLAMA_API_KEY,
+                    base_url=OLLAMA_BASE_URL,
+                    model="nemotron-3-nano:30b",
+                    max_tokens=max_tokens,
+                    timeout=30,
+                    max_retries=1,
+                )
             raise RuntimeError("GEMINI_API_KEY is not set in the .env file.")
         return ChatGoogleGenerativeAI(
             api_key=GEMINI_API_KEY,

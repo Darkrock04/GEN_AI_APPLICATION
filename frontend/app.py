@@ -232,15 +232,15 @@ st.markdown("""
 
 # HELPERS
 NODE_LABELS = {
-    "stress_test": "🔒 Security",
-    "simple_answer": "💬 Reply",
+    "stress_test": "🛡️ Safety & Triage",
+    "simple_answer": "⚡ Fast Reply",
     "planner": "📋 Planning",
     "retrieve": "🔍 Retrieval",
-    "grade_documents": "📑 Grading",
+    "grade_documents": "📑 CRAG Scoring",
     "web_search": "🌐 Web Search",
-    "router": "🔀 Routing",
+    "router": "🚦 S1 Routing",
     "worker": "✍️ Generating",
-    "validation": "✅ Validating",
+    "validation": "🔬 Verification",
     "evaluation": "✨ Polishing",
     "error": "❌ Error",
 }
@@ -248,11 +248,18 @@ NODE_LABELS = {
 PIPELINE_STEPS = ["stress_test", "planner", "retrieve", "grade_documents", "web_search", "router", "worker", "validation", "evaluation"]
 
 
-def _backend_alive() -> bool:
+def _get_health_data() -> dict:
     try:
-        return requests.get(f"{api_base()}/health", timeout=3).status_code == 200
+        r = requests.get(f"{api_base()}/health", timeout=3)
+        if r.status_code == 200:
+            return r.json()
     except Exception:
-        return False
+        pass
+    return {}
+
+
+def _backend_alive() -> bool:
+    return _get_health_data().get("status") == "ok"
 
 
 def _render_pipeline_stepper(completed_nodes: set, active_node: str = None):
@@ -296,10 +303,18 @@ if "uploader_key" not in st.session_state:
 # SIDEBAR
 with st.sidebar:
     st.markdown("## ⚡ <span class='spark-gradient'>SPARK AI</span>", unsafe_allow_html=True)
-    st.caption("Agentic RAG Pipeline")
+    st.caption("Dual-Brain Agentic RAG Pipeline (System 1 + System 2)")
 
-    if _backend_alive():
-        st.success("System Online", icon="🟢")
+    health = _get_health_data()
+    if health.get("status") == "ok":
+        st.success("System 2 (Generative): Online", icon="🟢")
+        laya_status = health.get("laya_status", "offline")
+        if laya_status == "online":
+            st.success("System 1 (Laya Reflex): Active", icon="⚡")
+        elif laya_status == "disabled":
+            st.info("System 1 (Laya Engine): Disabled", icon="⚪")
+        else:
+            st.warning("System 1 (Laya Engine): Fallback Mode", icon="🟡")
     else:
         st.error("System Offline", icon="🔴")
 
@@ -440,24 +455,24 @@ if not st.session_state.messages:
     st.markdown("""
     <div class="cap-grid">
         <div class="cap-card">
-            <div class="cap-icon">🧠</div>
-            <div class="cap-title">Chat & Reason</div>
+            <div class="cap-icon">⚡</div>
+            <div class="cap-title">Dual-Brain Engine</div>
             <div class="cap-desc">
-                Multi-agent pipeline with planning, dynamic routing, two-stage validation, and evaluation.
+                System 1 (Laya Non-Autoregressive RLCD) fast reflexes + System 2 (Gemini & Qwen) deep reasoning.
             </div>
         </div>
         <div class="cap-card">
             <div class="cap-icon">📑</div>
             <div class="cap-title">Corrective RAG</div>
             <div class="cap-desc">
-                Upload PDFs/TXT — document relevance grading with automatic SearXNG web search fallback.
+                ChromaDB hybrid retrieval with Laya calibrated document scoring and automated web search fallback.
             </div>
         </div>
         <div class="cap-card">
-            <div class="cap-icon">🔒</div>
-            <div class="cap-title">Security & Safety</div>
+            <div class="cap-icon">🔬</div>
+            <div class="cap-title">Universal Verification</div>
             <div class="cap-desc">
-                Built-in content safety gate with fast-path keyword detection and LLM audit.
+                Instant non-autoregressive factual verification & hallucination detection before output delivery.
             </div>
         </div>
     </div>
@@ -465,10 +480,36 @@ if not st.session_state.messages:
 
 
 
-# Display chat history (with timestamps — Feature 1)
+# Display chat history (with timestamps & Dual-Brain badges)
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
+        
+        # Dual-Brain telemetry badge
+        s1 = msg.get("system_one_decisions")
+        if s1 and isinstance(s1, dict) and any(isinstance(v, dict) and v.get("engine") in ("laya_system_one", "laya_universal_verification") for v in s1.values()):
+            st.markdown(
+                "<div style='font-size:0.75rem; color:#10b981; margin-top:4px; margin-bottom:4px; display:flex; align-items:center; gap:6px;'>"
+                "⚡ <i>Dual-Brain Active: System 1 (Laya Reflex) + System 2 (LLM Reasoning)</i></div>",
+                unsafe_allow_html=True
+            )
+            with st.expander("⚡ System 1 Decision Telemetry", expanded=False):
+                for node_name, dec in s1.items():
+                    if isinstance(dec, dict):
+                        eng = dec.get("engine", "laya")
+                        ms = dec.get("latency_ms")
+                        lat_info = f" · {ms}ms" if ms else ""
+                        if node_name == "stress_test":
+                            st.caption(f"**Intent Triage ({dec.get('intent', 'triage')}):** greeting={dec.get('greeting', False)} (prob: {dec.get('greeting_prob', 0):.2f}){lat_info}")
+                        elif node_name == "router":
+                            st.caption(f"**Task Router:** `{dec.get('task_type', 'general')}` (conf: {dec.get('confidence', 0):.2f}){lat_info}")
+                        elif node_name == "crag":
+                            st.caption(f"**CRAG Relevance:** {dec.get('is_relevant', True)} (score: {dec.get('score', 0):.2f}){lat_info}")
+                        elif node_name in ("validation", "universal_verification"):
+                            st.caption(f"**Universal Verification:** {dec.get('verdict', 'faithful')} (conf: {dec.get('confidence', 0):.2f}){lat_info}")
+                        else:
+                            st.caption(f"**{node_name}:** {dec}")
+
         # Show timestamp if available
         if msg.get("timestamp"):
             st.markdown(f"<div class='msg-timestamp'>{msg['timestamp']}</div>", unsafe_allow_html=True)
@@ -563,10 +604,13 @@ if prompt := st.chat_input("Message SPARK AI..."):
                             stepper_html = _render_pipeline_stepper(completed_nodes)
                             stepper_container.markdown(stepper_html, unsafe_allow_html=True)
 
-                            # Store sources if available
+                            # Store sources and dual-brain decisions if available
                             sources = acc.get("sources", [])
                             if sources:
                                 st.session_state.messages[-1]["sources"] = sources
+                            s1 = acc.get("system_one_decisions", {})
+                            if s1:
+                                st.session_state.messages[-1]["system_one_decisions"] = s1
 
                 except requests.exceptions.ReadTimeout:
                     bot_response = (
@@ -602,6 +646,7 @@ if prompt := st.chat_input("Message SPARK AI..."):
                         sources = data.get("sources", [])
                         response_time = data.get("response_time_ms", 0)
                         st.session_state.messages[-1]["sources"] = sources
+                        st.session_state.messages[-1]["system_one_decisions"] = data.get("system_one_decisions", {})
                     else:
                         bot_response = (
                             "Session expired or backend unavailable. "
