@@ -43,6 +43,7 @@ class GraphState(TypedDict):
     feedback: str
     final_response: str
     draft_generation_count: int
+    search_retry_count: int
     # Dynamic inference parameters (set per-request from UI)
     temperature: float
     top_p: float
@@ -203,6 +204,14 @@ def _audit_draft_for_cutoff(draft: str, user_request: str = "", current_date: st
 
     draft_lower = draft.lower()
     req_lower = (user_request or "").lower()
+    clean_d = draft.strip()
+
+    # 0. Check for unexecuted tool calls, JSON payloads, or search commands
+    if (clean_d.startswith("{") and any(k in clean_d.lower() for k in ("query", "top_n", "source", "search"))) or "[needs_web_search" in draft_lower:
+        return {
+            "has_cutoff": True,
+            "reason": "Draft is an unexecuted search tool call or command instead of an answer.",
+        }
 
     # 1. Explicit cutoff indicators / apologies
     cutoff_phrases = (
@@ -716,6 +725,14 @@ def evaluation_node(state: GraphState) -> GraphState:
     if not draft.strip():
         return {"final_response": "I couldn't generate a response. Please try again."}
 
+    clean_d = draft.strip()
+    # Absolute safety filter: Never let raw JSON tool calls, queries, or bracket commands leak to the user
+    if (clean_d.startswith("{") and any(k in clean_d.lower() for k in ("query", "top_n", "source", "search"))) or "[needs_web_search" in clean_d.lower():
+        logger.warning("[Evaluator] Caught unexecuted tool call leaking to user. Replacing with natural response.")
+        return {
+            "final_response": f"I checked for breaking updates on '{state['request']}' as of {state.get('current_date')}, but live feeds are currently updating. Please try asking again in a moment."
+        }
+
     # Skip polishing for short/simple responses — saves an LLM call
     if len(draft) < 500:
         return {"final_response": draft}
@@ -769,10 +786,12 @@ def route_after_worker(state: GraphState) -> str:
 
     # Check if worker triggered web search or admitted cutoff or hallucinated old years
     audit = _audit_draft_for_cutoff(draft, user_request=state["request"], current_date=current_date)
-    if audit["has_cutoff"] and not state.get("web_search_completed"):
+    retry_count = state.get("search_retry_count", 0)
+    if audit["has_cutoff"] and retry_count < 1:
         extracted_q = extract_search_query(draft, state["request"])
-        logger.info(f"Self-Correction: Worker hit cutoff/knowledge gap ({audit['reason']}). Triggering web search with query: '{extracted_q}'")
+        logger.info(f"Self-Correction: Worker hit cutoff/knowledge gap ({audit['reason']}). Triggering web search retry #{retry_count+1} with query: '{extracted_q}'")
         state["search_query"] = extracted_q
+        state["search_retry_count"] = retry_count + 1
         return "web_search"
 
     return "validation"
@@ -780,11 +799,13 @@ def route_after_worker(state: GraphState) -> str:
 
 def route_after_validation(state: GraphState) -> str:
     feedback = state.get("feedback", "")
-    # If validator caught a cutoff disclaimer and search hasn't run yet
-    if "CUTOFF_DETECTED" in feedback and not state.get("web_search_completed"):
+    retry_count = state.get("search_retry_count", 0)
+    # If validator caught a cutoff disclaimer and search hasn't run retry yet
+    if "CUTOFF_DETECTED" in feedback and retry_count < 1:
         extracted_q = extract_search_query(feedback, state["request"])
-        logger.info(f"Validator detected knowledge cutoff ({feedback}). Triggering web search with query: '{extracted_q}'.")
+        logger.info(f"Validator detected knowledge cutoff ({feedback}). Triggering web search retry #{retry_count+1} with query: '{extracted_q}'.")
         state["search_query"] = extracted_q
+        state["search_retry_count"] = retry_count + 1
         return "web_search"
 
     if state.get("validation_pass", True):
@@ -900,6 +921,7 @@ def _build_initial_state(request: str, history: list) -> dict:
         "request": request,
         "history": _build_history_str(history),
         "draft_generation_count": 0,
+        "search_retry_count": 0,
         "needs_web_search": False,
         "web_search_completed": False,
         "retrieval_completed": False,

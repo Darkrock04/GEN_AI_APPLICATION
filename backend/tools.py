@@ -57,17 +57,43 @@ def clean_search_query(query: str) -> str:
         if str(now.year) not in clean:
             clean = f"{clean} {month_year}"
 
+    # Domain prioritization: If query is about AI news, ensure search engines prioritize AI technology
+    # rather than general news headlines (e.g. weather/politics)
+    clean_lower = clean.lower()
+    if re.search(r'\bai\b', clean_lower) and "artificial intelligence" not in clean_lower:
+        clean = re.sub(r'\bai\b', "AI artificial intelligence", clean, flags=re.IGNORECASE)
+
     return clean.strip() or query.strip()
 
 
 def extract_search_query(text: str, default: str = "") -> str:
     """
-    Extracts a focused search query from model output containing [NEEDS_WEB_SEARCH: query]
-    or falls back to clean_search_query of the default prompt.
+    Extracts a focused search query from model output containing:
+    1. JSON function/tool-calls: e.g. {"query": "...", "top_n": 10}
+    2. Bracket notation: [NEEDS_WEB_SEARCH: query]
+    3. Or falls back to clean_search_query of the default prompt.
     """
     if not text:
         return clean_search_query(default)
     
+    clean_text = text.strip()
+    
+    # 1. Parse JSON tool calls (when LLMs revert to native function calling)
+    if clean_text.startswith("{") and clean_text.endswith("}"):
+        try:
+            d = json.loads(clean_text)
+            for k in ("query", "q", "search_query", "search", "keyword"):
+                if k in d and isinstance(d[k], str) and d[k].strip():
+                    return clean_search_query(d[k].strip())
+        except Exception:
+            pass
+            
+    # Check for embedded JSON tool call in text
+    json_match = re.search(r'\{[^{}]*"query"\s*:\s*"([^"]+)"[^{}]*\}', clean_text)
+    if json_match:
+        return clean_search_query(json_match.group(1).strip())
+        
+    # 2. Check for bracket notation: [NEEDS_WEB_SEARCH: query]
     match = re.search(r'\[NEEDS_WEB_SEARCH:\s*(.+?)\]', text, re.IGNORECASE)
     if match:
         extracted = match.group(1).strip()
