@@ -38,8 +38,8 @@ build/
 # Streamlit
 .streamlit/
 
-
-
+# Local deployment configs
+deploy/
 
 # Model & App cache
 .localenvironment/
