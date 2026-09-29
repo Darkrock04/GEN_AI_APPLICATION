@@ -56,8 +56,8 @@ SPARK AI breaks this bottleneck with a **Dual-Process Cognitive Architecture** i
 
 ### 1. Clone & Install
 ```bash
-git clone https://github.com/Darkrock04/GEN_AI_APPLICATION.git
-cd GEN_AI_APPLICATION
+git clone https://github.com/Darkrock04/SPARK_AI.git
+cd SPARK_AI
 
 # Create and activate virtual environment
 python -m venv .venv
