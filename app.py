@@ -1,11 +1,11 @@
 """
-container environments / local all-in-one launcher.
+SPARK AI - Application Supervisor
 
 Starts FastAPI (backend) in a subprocess, waits for /health, then runs Streamlit.
 Set SKIP_EMBEDDED_FASTAPI=1 if you run uvicorn separately and only want the UI.
 
 Environment:
-  PORT              — Streamlit port (local environment sets this, often 7860)
+  PORT              — Streamlit port (default 7860)
   FASTAPI_INTERNAL_PORT — API port (default 7861)
   BACKEND_URL       — Auto-set to match the API unless already set
 """

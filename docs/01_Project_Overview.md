@@ -42,7 +42,7 @@ Unlike conventional GenAI chatbots that wake up a heavy 31B–120B parameter aut
 
 ```
 SPARK-AI/
-├── app.py                      # Local and container launcher (FastAPI + Streamlit)
+├── app.py                      # Root application supervisor (FastAPI + Streamlit)
 ├── requirements.txt            # Python dependencies (LangChain, LangGraph, Langfuse, httpx, etc.)
 ├── .env                        # Environment variables & API credentials (gitignored)
 ├── .env.example                # Configuration template with Laya endpoint settings
