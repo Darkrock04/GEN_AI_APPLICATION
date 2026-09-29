@@ -2,8 +2,6 @@
 
 A production-grade, enterprise **Dual-Process (System 1 + System 2) Multi-Agent AI Assistant** combining an ultra-fast, non-autoregressive **System 1 Decision Engine** (Laya with RLCD) with a **System 2 Generative Multi-Cloud Ensemble** (Google Gemini, Ollama Cloud, and Nvidia NIM). Features sub-second intent triage, calibrated Corrective RAG (CRAG), Universal Verification (hallucination detection), and stateful circuit-breaker resilience.
 
-
-
 ---
 
 ## 📖 The Dual-Brain Paradigm (System 1 + System 2)
@@ -93,7 +91,15 @@ LANGFUSE_SECRET_KEY=your_langfuse_secret_key
 LANGFUSE_HOST=https://cloud.langfuse.com
 ```
 
-### 3. Launch Services
+### 3. Launch Services (Local Machine)
+
+**Option A — All-in-One Launcher:**
+```bash
+python app.py
+```
+This automatically launches the FastAPI backend and Streamlit frontend concurrently.
+
+**Option B — Independent Terminals:**
 ```bash
 # Terminal 1: Start FastAPI Backend
 uvicorn backend.main:app --reload --port 8000
@@ -108,10 +114,10 @@ streamlit run frontend/app.py
 
 ```
 SPARK-AI/
-├── app.py                      # Root launcher (FastAPI + Streamlit subprocesses)
+├── app.py                      # Root launcher (FastAPI + Streamlit supervisor)
 ├── requirements.txt            # Python dependencies (LangGraph, Langfuse, ChromaDB, etc.)
 ├── .env                        # Environment variables & API credentials (gitignored)
-├── .env.example                # Configuration template with Laya endpoint settings
+├── .env.example                # Configuration template with generic placeholders
 ├── backend/
 │   ├── api_models.py           # Pydantic schemas (with dual-brain telemetry)
 │   ├── laya_client.py          # Laya System 1 Decision Client (circuit breaker & typed primitives)
@@ -123,9 +129,8 @@ SPARK-AI/
 │   └── main.py                 # FastAPI server, startup seeding & health endpoints
 ├── frontend/
 │   └── app.py                  # Streamlit chat UI with dual-brain stepper & badges
-├── docs/                       # Complete architectural manuals (01 through 07)
-│   └── images/                 # Architectural & RAG lifecycle visual diagrams
-└──                      # local environment 
+└── docs/                       # Complete architectural manuals (01 through 07)
+    └── images/                 # Architectural & RAG lifecycle visual diagrams
 ```
 
 ---

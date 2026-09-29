@@ -38,6 +38,9 @@ build/
 # Streamlit
 .streamlit/
 
-# local environment cache
+
+
+
+# Model & App cache
 .localenvironment/
 .cache/

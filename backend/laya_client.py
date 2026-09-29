@@ -10,7 +10,7 @@ Provides sub-second, mathematically calibrated System-1 reflexes for:
   4. Validation Node: Universal Verification (claim faithfulness & hallucination detection).
 
 Enterprise Resilience:
-  - Built-in circuit breaker to guard against container environment cold-starts.
+  - Built-in circuit breaker to guard against remote server cold-starts or network latency.
   - Strict timeouts (default 2.5s).
   - Non-blocking design: Returns None on failure, enabling seamless silent fallback to System-2 LLMs.
 """

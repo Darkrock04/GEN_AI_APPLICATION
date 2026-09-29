@@ -57,7 +57,6 @@ SPARK-AI/
 │   └── main.py                 # FastAPI server, health endpoints & dual-brain API routes
 ├── frontend/
 │   └── app.py                  # Streamlit chat UI with dual-brain stepper & badges
-├── docs/                       # Comprehensive documentation (01 through 07)
-│   └── images/                 # Architecture & RAG lifecycle visual diagrams
-└──                      # local environment 
+└── docs/                       # Comprehensive documentation (01 through 07)
+    └── images/                 # Architecture & RAG lifecycle visual diagrams
 ```
