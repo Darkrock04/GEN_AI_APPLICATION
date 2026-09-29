@@ -34,6 +34,8 @@ Documents are not uniform. A 2-page invoice has entirely different structural ch
 - **Density Adaptation:** Low-density documents (e.g. presentation slides with <200 chars/page) automatically receive smaller chunks to prevent empty vectors.
 - **Semantic Separators:** Splitting prioritizes logical boundaries (`\n\n` paragraphs, `\n` linebreaks, `. ` sentence boundaries) to preserve coherent thought units.
 
+![Adaptive Document RAG Ingestion Pipeline](images/rag_pipeline.png)
+
 ### 2. High-Throughput Dense Vector Embedding
 - **Model:** Google Gemini `models/gemini-embedding-001`.
 - **Dimensionality:** 768-dimensional dense semantic vectors.
@@ -90,15 +92,8 @@ is_faithful, confidence, telemetry = laya_client.verify_claim_faithfulness(
 - **Execution Speed:** ~200ms non-autoregressive verification (vs 3.5s for an LLM audit).
 
 ### Two-Stage Verification Pipeline
-```mermaid
-flowchart LR
-    Draft["Worker Draft Response"] --> LayaUV["⚡ System 1: Universal Verification\n(Laya RLCD Faithfulness)"]
-    LayaUV -->|Hallucination Detected >= 85%| WebSearch["🌐 Live SearXNG Web Grounding\n(Fetch Ground Truth)"]
-    LayaUV -->|Faithful / Borderline| DeepVal["🧠 System 2: Deep Grounding Audit\n(Gemini 3.1 Flash-Lite)"]
-    WebSearch --> ReGenerate["✍️ Worker Re-generation"]
-    DeepVal -->|Pass| Output["✨ Final Evaluator Polish"]
-    DeepVal -->|Fail| ReGenerate
-```
+
+![Two-Stage Universal Verification & Self-RAG Pipeline](images/verification_pipeline.png)
 
 1. **Stage 1 (System 1 Reflex):** If Laya detects a hallucination with ≥85% confidence, the pipeline flags the draft immediately and routes to live SearXNG search to retrieve factual grounding.
 2. **Stage 2 (System 2 Deep Reasoning):** If the draft passes System 1 verification, Gemini 3.1 Flash-Lite conducts a deep multi-dimensional check (relevance, factuality, temporal cutoff detection) using `validator_prompt`.

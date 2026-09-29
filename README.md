@@ -88,8 +88,8 @@ NVIDIA_API_KEY=your_nvidia_api_key
 
 # Live Web Search & Observability
 SEARXNG_URL=your_self_hosted_searxng_url
-LANGFUSE_PUBLIC_KEY=pk-lf-your_public_key
-LANGFUSE_SECRET_KEY=sk-lf-your_secret_key
+LANGFUSE_PUBLIC_KEY=your_langfuse_public_key
+LANGFUSE_SECRET_KEY=your_langfuse_secret_key
 LANGFUSE_HOST=https://cloud.langfuse.com
 ```
 

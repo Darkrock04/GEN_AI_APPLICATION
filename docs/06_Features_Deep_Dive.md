@@ -9,26 +9,7 @@ Most multi-agent AI systems suffer from the **"Heavy LLM Monoculture"** — usin
 
 SPARK AI resolves this by implementing a **Dual-Process Cognitive Architecture** mirroring Daniel Kahneman's model of human cognition:
 
-```mermaid
-flowchart TD
-    Query["Incoming User Query"] --> S1Gate{"⚡ System 1: Laya Reflex Arc\n(Non-Autoregressive RLCD)"}
-    
-    S1Gate -->|Greeting Detected\n~150ms| QuickReply["⚡ Quick Greeter\n(Immediate Fast-Path)"]
-    S1Gate -->|Task Triage & Routing\n~140ms| Dispatcher["🚦 Specialized Agent Dispatcher"]
-    
-    Dispatcher --> Planner["📋 System 2: Planner Node\n(Gemini 3.1 Flash-Lite)"]
-    Planner --> ContextRetriever["📚 Hybrid ChromaDB RAG"]
-    
-    ContextRetriever --> S1CRAG{"⚡ System 1: CRAG Document Grader\n(ModernBERT-large ~180ms)"}
-    S1CRAG -->|Relevant| WorkerNode["🧠 System 2: Specialized Workers\n(Gemini 3.5 Flash / GPT-OSS 120B)"]
-    S1CRAG -->|Irrelevant| WebSearch["🌐 Live SearXNG Web Grounding"] --> WorkerNode
-    
-    WorkerNode --> S1Verify{"⚡ System 1: Universal Verification\n(Claim Faithfulness ~200ms)"}
-    S1Verify -->|Hallucination >= 85%| WebSearch
-    S1Verify -->|Faithful| S2Validator["✅ System 2: Deep Grounding Audit"]
-    
-    S2Validator --> Evaluator["✨ Final Polisher & LaTeX Formatter"]
-```
+![Dual-Process Cognitive Architecture](images/architecture_v3.png)
 
 ### Cognitive Distribution Metrics
 
@@ -80,6 +61,8 @@ class LayaCircuitBreaker:
    - The user experiences zero UI freeze and zero 500 errors.
 3. **HALF-OPEN (Probing):** Once the 15-second cooldown elapses, the circuit allows a single probe call. If successful, it automatically resets to CLOSED.
 
+![Stateful Circuit Breaker Architecture](images/circuit_breaker.png)
+
 ---
 
 ## 4. Enterprise Corrective RAG (CRAG) & Self-RAG Loops
@@ -111,6 +94,8 @@ Validation outputs automatically publish numeric scores to Langfuse:
 - `quality_validation = 1.0` (PASS)
 - `quality_validation = 0.0` (FAIL)
 Along with specific evaluator feedback and trace session IDs, providing real-time quality graphs on the Langfuse dashboard.
+
+![Two-Stage Universal Verification & Self-RAG Pipeline](images/verification_pipeline.png)
 
 ---
 

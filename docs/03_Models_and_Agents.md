@@ -75,16 +75,7 @@ When deep reasoning, complex code generation, or nuanced prose synthesis is requ
 
 To ensure zero downtime, all System 1 Laya interactions are encapsulated within a **Stateful Circuit Breaker** (`backend/laya_client.py`):
 
-```mermaid
-stateDiagram-v2
-    [*] --> Closed: Initial State
-    Closed --> Closed: Request Succeeds (<3.5s)
-    Closed --> Open: 5 Consecutive Failures / Timeouts
-    Open --> Open: Requests Immediately Fallback to System 2 LLMs (No Network Wait)
-    Open --> HalfOpen: Cooldown Window Expires (15s)
-    HalfOpen --> Closed: Probe Request Succeeds
-    HalfOpen --> Open: Probe Request Fails
-```
+![Stateful Circuit Breaker Architecture](images/circuit_breaker.png)
 
 1. **Closed State:** Requests are dispatched to the Laya `/v1/systemone` endpoint with a strict 3.5-second timeout.
 2. **Open State:** After 5 consecutive failures or network timeouts, the circuit trips OPEN. For the next 15 seconds, all incoming requests skip Laya entirely with 0ms network penalty, instantly delegating the decision to System 2 fallback LLMs (Gemini 3.1 Flash-Lite or Gemma-4 31B).
@@ -112,7 +103,7 @@ NVIDIA_API_KEY=your_nvidia_api_key
 
 # External Tools & Observability
 SEARXNG_URL=your_self_hosted_searxng_url
-LANGFUSE_PUBLIC_KEY=pk-lf-your_public_key
-LANGFUSE_SECRET_KEY=sk-lf-your_secret_key
+LANGFUSE_PUBLIC_KEY=your_langfuse_public_key
+LANGFUSE_SECRET_KEY=your_langfuse_secret_key
 LANGFUSE_HOST=https://cloud.langfuse.com
 ```

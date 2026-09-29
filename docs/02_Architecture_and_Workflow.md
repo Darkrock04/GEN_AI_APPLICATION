@@ -26,66 +26,17 @@ SPARK AI implements a **Dual-Process Cognitive Architecture** inspired by Daniel
 
 ---
 
-## Dual-Process Workflow Diagram
+## Dual-Process Workflow Architecture
 
-```mermaid
-flowchart TD
-    subgraph ClientPlane["Client Interaction"]
-        User["User Request"] --> Entry["FastAPI /chat or /chat/stream"]
-    end
+![Dual-Process Workflow Architecture](images/architecture_v3.png)
 
-    subgraph SystemOnePlane["⚡ System 1: Laya Decision Engine (Non-Autoregressive RLCD)"]
-        LayaTriage["🛡️ Greeting & Intent Reflex\n(is_greeting noul + multilingual)"]
-        LayaCRAG["📑 CRAG Relevance Scorer\n(doc_relevance choice + 0-2 score)"]
-        LayaRouter["🚦 Model Router Reflex\n(task_type choice: coding / creative / general)"]
-        LayaVerify["🔬 Universal Verification\n(faithfulness choice: faithful vs hallucinated)"]
-    end
-
-    subgraph SystemTwoPlane["🧠 System 2: Generative Multi-Cloud Ensemble"]
-        SafetyGate["🔒 Nemotron Guardrail\n(Prompt Injection & Toxic Audit)"]
-        FastReply["⚡ Quick Greeter\n(GPT-OSS 120B / Direct)"]
-        Planner["📋 Planner Node\n(Gemini 3.1 Flash-Lite)"]
-        WebSearch["🌐 SearXNG Web Search\n(Live Internet Grounding)"]
-        ChromaStore["📚 ChromaDB Hybrid Store\n(Gemini Embeddings + BM25)"]
-        CodingWorker["💻 Coding Worker\n(Gemini 3.5 Flash / Qwen 2.5 Coder)"]
-        CreativeWorker["🎨 Creative Worker\n(Mistral Small 24B)"]
-        GeneralWorker["📖 General Worker\n(Llama 3.3 70B / GPT-OSS 120B)"]
-        DeepValidator["✅ Deep Grounding Validator\n(Gemini 3.1 Flash-Lite)"]
-        Evaluator["✨ Final Polisher\n(Nemotron 3 Super)"]
-    end
-
-    subgraph ObservabilityPlane["🔭 Control Plane (Langfuse)"]
-        Registry["Prompt Registry (11 Managed Prompts)"]
-        TraceHandler["Trace Callback (Session IDs, Tags, Timings)"]
-        ScoreLogger["Quality Score Logger"]
-    end
-
-    Entry --> TraceHandler --> SafetyGate
-    SafetyGate -->|Safe| LayaTriage
-    SafetyGate -->|Unsafe| Blocked([Canned Safety Refusal])
-
-    LayaTriage -->|Greeting: True| FastReply --> Output([Final Grounded Response])
-    LayaTriage -->|Greeting: False| Planner
-
-    Planner -->|needs_web_search| WebSearch --> ChromaStore
-    Planner -->|standard| ChromaStore
-    ChromaStore --> LayaCRAG
-
-    LayaCRAG -->|Relevant / Score >= 1.0| LayaRouter
-    LayaCRAG -->|Irrelevant / Score < 1.0| WebSearch --> LayaRouter
-
-    LayaRouter -->|coding| CodingWorker
-    LayaRouter -->|creative| CreativeWorker
-    LayaRouter -->|general| GeneralWorker
-
-    CodingWorker & CreativeWorker & GeneralWorker -->|Draft Generated| LayaVerify
-    LayaVerify -->|Hallucination Detected >= 85%| WebSearch
-    LayaVerify -->|Faithful / Borderline| DeepValidator
-
-    DeepValidator -.->|Log Score| ScoreLogger
-    DeepValidator -->|FAIL & attempt < 2| CodingWorker
-    DeepValidator -->|PASS| Evaluator --> Output
-```
+### End-to-End Execution Flow
+1. **Security Gate & Fast-Path Triage:** Every incoming prompt is evaluated for safety by `nemotron-3-nano:30b`. In parallel, System 1 Laya runs a non-autoregressive greeting reflex (`is_greeting: noul`). If recognized as a greeting, the workflow executes a sub-second conversational reflex.
+2. **Date-Aware Planning & Retrieval:** For actionable tasks, `gemini-3.1-flash-lite` decomposes the goal with temporal date awareness, retrieving relevant context from ChromaDB.
+3. **Corrective RAG (CRAG):** Retrieved document chunks are evaluated by System 1 Laya's non-autoregressive relevance head (`doc_relevance: choice` + `score`). If chunks are irrelevant or missing, live internet ground truth is retrieved via SearXNG.
+4. **Intent Dispatching & Worker Execution:** System 1 Laya classifies the task type (`coding`, `creative`, `general`) in ~140ms and routes to the specialized worker LLM.
+5. **Universal Verification & Grounding:** Generated drafts are verified by System 1 Laya (`faithfulness: choice`) in ~200ms. If hallucination is detected (≥ 85%), live web search grounding triggers re-generation.
+6. **Final Polish & Langfuse Scoring:** The draft is polished with standard LaTeX math rendering and clean Markdown by the evaluator, with quality scores published directly to Langfuse.
 
 ### 1. Root Trace Instrumentation
 - In `process_chat()` and `stream_graph_updates()`, the pipeline initializes the Langfuse `CallbackHandler`.
