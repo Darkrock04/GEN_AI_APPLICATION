@@ -6,7 +6,7 @@ SPARK AI is a production-grade, enterprise **Dual-Process (System 1 + System 2) 
 
 Unlike conventional GenAI chatbots that wake up a heavy 31B–120B parameter autoregressive model for every trivial greeting or classification, SPARK AI routes requests through a cognitive dual-brain harness:
 * **System 1 (Reflex Arc — Laya Engine):** Sub-second, mathematically calibrated decisions for safety filtering, multilingual greeting triage, CRAG document relevance scoring, model routing, and Universal Verification (hallucination checks).
-* **System 2 (Deep Reasoning — Generative Ensemble):** Deep planning, query decomposition, code synthesis (Gemini 3.5 Flash / Qwen 2.5 Coder), creative generation (Mistral Small), and knowledge synthesis (Llama 3.3 70B / GPT-OSS 120B).
+* **System 2 (Deep Reasoning — Generative Ensemble):** Deep planning, query decomposition, code synthesis (Gemini 3.5 Flash), creative generation (GPT-OSS 120B), and knowledge synthesis (GPT-OSS 120B / Gemini 3.1 Flash-Lite).
 
 ---
 

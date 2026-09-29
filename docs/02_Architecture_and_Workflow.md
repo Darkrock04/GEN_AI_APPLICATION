@@ -5,7 +5,7 @@
 SPARK AI implements a **Dual-Process Cognitive Architecture** inspired by Daniel Kahneman's model of human cognition:
 
 * **System 1 (Reflex Arc — Laya Engine):** An ultra-fast, non-autoregressive decision engine running ModernBERT-large (English) and mmBERT-base (100+ languages) fine-tuned via **Reinforcement Learning for Calibrated Decisions (RLCD)**. It operates in sub-second forward passes without streaming tokens, returning mathematically calibrated probabilities for safety triage, greeting detection, CRAG document relevance scoring, model routing, and Universal Verification.
-* **System 2 (Prefrontal Cortex — Generative Ensemble):** Slower, deliberate, multi-agent frontier models (Google Gemini 3.1 Flash-Lite, Gemini 3.5 Flash, Qwen 2.5 Coder 32B, Mistral Small 24B, Llama 3.3 70B, and Nvidia Nemotron) dedicated to task decomposition, query planning, code synthesis, creative writing, and factual critique.
+* **System 2 (Prefrontal Cortex — Generative Ensemble):** Slower, deliberate, multi-agent frontier models (Google Gemini 3.1 Flash-Lite, Gemini 3.5 Flash, Ollama Cloud GPT-OSS 120B, Gemma-4 31B, and Nvidia Nemotron) dedicated to task decomposition, query planning, code synthesis, creative writing, and factual critique.
 
 <img width="1024" alt="arch" src="images/architecture_v3.png" />
 
@@ -20,7 +20,7 @@ SPARK AI implements a **Dual-Process Cognitive Architecture** inspired by Daniel
 | **Execution Planning** | **System 2 (Gemini)** (`gemini-3.1-flash-lite`) | Direct pass-through | Structured Text Plan | ~350ms |
 | **CRAG Document Grading** | **System 1 (Laya)** | **Gemini 3.1 Flash-Lite** | `doc_relevance: choice` & `score` | ~180ms |
 | **Worker Routing** | **System 1 (Laya)** | **Gemma-4 31B** (Ollama Cloud) | `task_type: choice` (`coding`, `creative`, `general`) | ~140ms |
-| **Code Generation** | **System 2 (Gemini / Qwen)** | Mistral / Llama | Autoregressive Token Stream | 2.0s – 5.0s |
+| **Code Generation** | **System 2 (Gemini 3.5 Flash)** | Ollama Cloud / Nemotron | Autoregressive Token Stream | 2.0s – 5.0s |
 | **Universal Verification** | **System 1 (Laya)** | **Gemini 3.1 Flash-Lite** | `faithfulness: choice` (Claim check) | ~200ms |
 | **Final Polishing** | **System 2 (Nemotron 3 Super)** | Draft pass-through | Text Refinement | ~400ms |
 

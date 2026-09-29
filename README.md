@@ -12,7 +12,7 @@ Traditional multi-agent systems suffer from a heavy LLM monoculture: every simpl
 
 SPARK AI breaks this bottleneck with a **Dual-Process Cognitive Architecture** inspired by Daniel Kahneman:
 * **System 1 (Reflex Arc — Laya Engine):** Non-autoregressive decision heads powered by **ModernBERT-large** (English) and **mmBERT-base** (100+ languages) fine-tuned via **Reinforcement Learning for Calibrated Decisions (RLCD)**. Operates in single-pass forward evaluations (~100–250ms), producing mathematically calibrated probability distributions without token generation.
-* **System 2 (Prefrontal Cortex — Generative Frontier Ensemble):** Deep, deliberative frontier models (Google Gemini 3.5 Flash, Gemini 3.1 Flash-Lite, Ollama Cloud GPT-OSS 120B, Mistral Small 24B, Llama 3.3 70B, and Nvidia Nemotron) for date-aware planning, complex code synthesis, creative writing, and multi-source document synthesis.
+* **System 2 (Prefrontal Cortex — Generative Frontier Ensemble):** Deep, deliberative frontier models (Google Gemini 3.5 Flash, Gemini 3.1 Flash-Lite, Ollama Cloud GPT-OSS 120B, Gemma-4 31B, and Nvidia Nemotron) for date-aware planning, complex code synthesis, creative writing, and multi-source document synthesis.
 
 ---
 
