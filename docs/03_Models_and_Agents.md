@@ -16,7 +16,7 @@ SPARK AI pioneers an enterprise **Dual-Process Cognitive Architecture** inspired
 - **Base Encoders:** ModernBERT-large (English decision model) and mmBERT-base (multilingual decision model across 100+ languages).
 - **Training Paradigm:** Reinforcement Learning for Calibrated Decisions (RLCD). Decision heads are calibrated so output scores reflect true posterior probabilities rather than overconfident softmax approximations.
 - **Inference Mechanism:** Single forward pass through the encoder backbone with specialized classification and regression heads (`choice`, `score`, `noul`).
-- **Endpoint:** Self-hosted on container environments (`your_self_hosted_laya_url/v1/systemone`) or local container, requiring no proprietary API key.
+- **Endpoint:** Self-hosted server (`your_self_hosted_laya_url/v1/systemone`) or local container, requiring no proprietary API key.
 
 ### 2. Specialized Decision Primitives in SPARK AI
 | Primitive Function | Laya Question Type | Candidate Outputs | Latency | Pipeline Node |
