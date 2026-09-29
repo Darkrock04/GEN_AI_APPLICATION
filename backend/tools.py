@@ -4,25 +4,78 @@ import logging
 import urllib.request
 import urllib.parse
 import re
+from datetime import datetime
 from typing import List, Dict, Any
 
 logger = logging.getLogger(__name__)
 
+
+def clean_search_query(query: str) -> str:
+    """
+    Strips conversational filler phrases and anchors temporal queries with the current month/year.
+    E.g. 'tell me what is the ai news today live i want' -> 'ai news today September 2026'
+    """
+    if not query:
+        return ""
+
+    clean = query.strip()
+    now = datetime.now()
+    month_year = now.strftime("%B %Y")
+
+    # Strip conversational prefixes iteratively
+    prefixes = [
+        r"^can\s+(?:you|u)\s+(?:please\s+)?tell\s+me\s+(?:about\s+)?(?:the\s+)?",
+        r"^could\s+you\s+(?:please\s+)?tell\s+me\s+(?:about\s+)?(?:the\s+)?",
+        r"^tell\s+me\s+(?:about\s+)?(?:the\s+)?",
+        r"^what\s+(?:is|are|r)\s+(?:the\s+)?",
+        r"^show\s+me\s+(?:the\s+)?",
+        r"^give\s+me\s+(?:the\s+)?",
+        r"^i\s+want\s+(?:to\s+(?:know|see|find|get)\s+)?",
+        r"^find\s+me\s+(?:the\s+)?",
+        r"^search\s+(?:the\s+web\s+)?(?:for\s+)?",
+        r"^lookup\s+(?:the\s+)?",
+        r"^please\s+",
+    ]
+    for p in prefixes:
+        clean = re.sub(p, "", clean, flags=re.IGNORECASE).strip()
+
+    # Strip trailing conversational fluff
+    suffixes = [
+        r"\s+live\s+i\s+want$",
+        r"\s+i\s+want$",
+        r"\s+can\s+(?:you|u)\s+tell\s+me$",
+        r"\s+can\s+you$",
+        r"\s+please$",
+        r"\s+right\s+now$",
+    ]
+    for s in suffixes:
+        clean = re.sub(s, "", clean, flags=re.IGNORECASE).strip()
+
+    # If the user asked for current/live/news/recent info, anchor with current calendar date
+    temporal_signals = ("today", "this month", "current", "latest", "recent", "news", "released")
+    if any(k in query.lower() for k in temporal_signals):
+        if str(now.year) not in clean:
+            clean = f"{clean} {month_year}"
+
+    return clean.strip() or query.strip()
+
+
 def extract_search_query(text: str, default: str = "") -> str:
     """
     Extracts a focused search query from model output containing [NEEDS_WEB_SEARCH: query]
-    or falls back to conversational cleaning of the default prompt.
+    or falls back to clean_search_query of the default prompt.
     """
     if not text:
-        return default
+        return clean_search_query(default)
     
     match = re.search(r'\[NEEDS_WEB_SEARCH:\s*(.+?)\]', text, re.IGNORECASE)
     if match:
         extracted = match.group(1).strip()
         if extracted:
-            return extracted
+            return clean_search_query(extracted)
             
-    return default
+    return clean_search_query(default)
+
 
 def perform_web_search(query: str, max_results: int = 5) -> str:
     """
@@ -33,21 +86,10 @@ def perform_web_search(query: str, max_results: int = 5) -> str:
         logger.warning("SEARXNG_URL is not set. Web search is disabled.")
         return ""
 
-    try:
-        # Strip common conversational prefixes for cleaner search results
-        clean_q = query.strip()
-        prefixes = [
-            "can you tell me the ", "can you tell me ", "can u tell me the ", "can u tell me ",
-            "tell me about the ", "tell me about ", "tell me the ", "tell me ",
-            "what is the ", "what is ", "what are the ", "what are ",
-            "give me the ", "give me ", "search the web for ", "search for ",
-            "what's the ", "what's "
-        ]
-        for prefix in prefixes:
-            if clean_q.lower().startswith(prefix):
-                clean_q = clean_q[len(prefix):].strip()
-                break
+    clean_q = clean_search_query(query)
+    logger.info(f"[Web Search] Cleaned search query: '{clean_q}' (original: '{query}')")
 
+    try:
         # Build URL with params
         params = urllib.parse.urlencode({
             "q": clean_q,
@@ -62,15 +104,17 @@ def perform_web_search(query: str, max_results: int = 5) -> str:
                 results = data.get("results", [])
                 
                 if not results:
-                    return "No recent internet information found on this topic."
+                    logger.info(f"[Web Search] Zero results returned for query: '{clean_q}'")
+                    return f"No recent internet information found for: {clean_q}"
 
-                formatted_results = ["### Web Search Results:"]
+                formatted_results = [f"### Web Search Results ({datetime.now().strftime('%B %Y')}):"]
                 for i, res in enumerate(results[:max_results]):
                     title = res.get("title", "No Title")
                     content = res.get("content", "No Description")
                     link = res.get("url", "#")
                     formatted_results.append(f"**{title}**\n{content}\nSource: {link}\n")
                 
+                logger.info(f"[Web Search] Successfully fetched {len(results[:max_results])} results from SearXNG.")
                 return "\n".join(formatted_results)
             else:
                 logger.error(f"SearXNG returned status code {response.status}")

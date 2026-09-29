@@ -10,7 +10,7 @@ from langgraph.graph import StateGraph, END
 from langchain_core.prompts import ChatPromptTemplate
 from backend.llm_factory import get_llm
 from backend.vector_store import vector_store_manager
-from backend.tools import perform_web_search, extract_search_query
+from backend.tools import perform_web_search, extract_search_query, clean_search_query
 from backend.langfuse_prompt_manager import get_managed_prompt, log_validation_score
 from backend.laya_client import laya_client
 
@@ -84,12 +84,13 @@ def _safe_llm_call(
     max_tokens: int = None,
     prompt_name: str = None,
     langfuse_prompt: Any = None,
+    fallback_llm: Any = None,
 ) -> str:
     """
-    Wraps every LLM call with retry + rate-limit handling.
+    Wraps every LLM call with retry + rate-limit handling and cross-cloud failover.
     Supports dynamic temperature, top_p, max_tokens overrides.
     Seamlessly fetches managed prompts from Langfuse and attaches prompt metadata for trace linking.
-    Returns fallback on any failure — never crashes the pipeline.
+    Falls back to cross-cloud fallback_llm if primary fails, then returns fallback string — never crashes the pipeline.
     """
     if variables is None:
         variables = {}
@@ -152,7 +153,24 @@ def _safe_llm_call(
                 logger.warning(f"LLM call failed (attempt {attempt+1}/{retries+1}): {e}. Retrying in {wait}s...")
                 time.sleep(wait)
                 continue
-            logger.warning(f"LLM call failed after {retries+1} attempts: {e}")
+            logger.warning(f"Primary LLM call failed after {retries+1} attempts: {e}")
+            if fallback_llm is not None:
+                try:
+                    logger.info(f"Invoking cross-cloud fallback LLM for prompt '{prompt_name}'...")
+                    prompt = ChatPromptTemplate.from_template(prompt_template)
+                    call_config = {}
+                    if langfuse_prompt is not None:
+                        call_config["metadata"] = {"langfuse_prompt": langfuse_prompt}
+                    fb_result = (prompt | fallback_llm).invoke(variables, config=call_config if call_config else None)
+                    fb_content = fb_result.content if hasattr(fb_result, "content") else str(fb_result)
+                    if isinstance(fb_content, list):
+                        parts = [b if isinstance(b, str) else b.get("text", str(b)) if isinstance(b, dict) else str(b) for b in fb_content]
+                        fb_content = "\n".join(parts)
+                    if fb_content and isinstance(fb_content, str) and fb_content.strip():
+                        logger.info(f"Cross-cloud fallback LLM succeeded for prompt '{prompt_name}'.")
+                        return fb_content.strip()
+                except Exception as fb_err:
+                    logger.warning(f"Cross-cloud fallback LLM also failed: {fb_err}")
             return fallback
     return fallback
 
@@ -169,6 +187,85 @@ def _timed_node(func):
         return result
     wrapper.__name__ = func.__name__
     return wrapper
+
+
+# DETERMINISTIC KNOWLEDGE CUTOFF & TEMPORAL AUDITOR
+def _audit_draft_for_cutoff(draft: str, user_request: str = "", current_date: str = "") -> dict:
+    """
+    Deterministically audits a draft response for knowledge cutoff disclaimers,
+    apologies, or outdated hallucinated events when the user asked for current/live info.
+    Runs in 0ms with zero reliance on external LLM availability.
+    Returns:
+        {"has_cutoff": bool, "reason": str}
+    """
+    if not draft:
+        return {"has_cutoff": False, "reason": ""}
+
+    draft_lower = draft.lower()
+    req_lower = (user_request or "").lower()
+
+    # 1. Explicit cutoff indicators / apologies
+    cutoff_phrases = (
+        "[needs_web_search",
+        "as of my knowledge cutoff",
+        "knowledge cutoff of",
+        "knowledge cutoff is",
+        "my knowledge cutoff",
+        "cutoff of 2024",
+        "up to the middle of 2024",
+        "up to mid-2024",
+        "as of mid-2024",
+        "mid-2024",
+        "latest period for which i have reliable",
+        "i do not have real-time",
+        "i don't have real-time",
+        "no real-time data",
+        "cannot provide real-time",
+        "do not have access to real-time",
+        "don't have access to real-time",
+        "do not have access to current",
+        "don't have access to current",
+        "as of my last update",
+        "training data only goes up to",
+        "training data cuts off",
+        "training data cut off",
+        "i cannot browse the live web",
+        "cannot browse the live web",
+        "as of september 2024",
+        "as of late 2024",
+        "september 2024 vibe",
+        "june 2024 vibe",
+    )
+    for phrase in cutoff_phrases:
+        if phrase in draft_lower:
+            return {
+                "has_cutoff": True,
+                "reason": f"Draft contains explicit cutoff disclaimer or apology: '{phrase}'",
+            }
+
+    # 2. Temporal hallucination check:
+    # If the user asked for "today", "live", "current", "this month", "latest" news/models/events,
+    # but the draft provides outdated 2024 claims without referencing the current year (2026)
+    temporal_signals = ("today", "live", "current", "latest", "recent", "this month", "released this month", "happened today")
+    is_temporal_request = any(sig in req_lower for sig in temporal_signals)
+
+    if is_temporal_request:
+        outdated_year_patterns = [
+            r"\bin\s+2024\b",
+            r"\bas\s+of\s+2024\b",
+            r"\bjune\s+2024\b",
+            r"\bmid-2024\b",
+            r"\bearly\s+2024\b",
+            r"\blate\s+2024\b",
+            r"\bthroughout\s+2024\b",
+        ]
+        if "2026" not in draft_lower and any(re.search(p, draft_lower) for p in outdated_year_patterns):
+            return {
+                "has_cutoff": True,
+                "reason": "Draft references 2024 as current context for a live/present-day request.",
+            }
+
+    return {"has_cutoff": False, "reason": ""}
 
 
 # SECURITY GATE
@@ -256,6 +353,7 @@ def planner_node(state: GraphState) -> GraphState:
         },
         fallback="Respond to the user.",
         prompt_name="planner_prompt",
+        fallback_llm=router_llm,
     )
     
     needs_web = "[NEEDS_WEB_SEARCH]" in response
@@ -267,12 +365,16 @@ def planner_node(state: GraphState) -> GraphState:
         "latest", "news", "today", "current", "weather",
         "stock price", "price of", "recent", "who won",
         "what happened", "release date", "search the web",
-        "browse the web", "search online"
+        "browse the web", "search online", "this month", "live",
+        "2026", "yesterday", "right now", "happening", "released"
     )
     if any(k in req_lower for k in search_keywords):
         needs_web = True
     
-    return {"plan": clean_plan, "needs_web_search": needs_web}
+    # Extract or generate a clean, date-anchored search query
+    clean_q = extract_search_query(response, default=state["request"])
+    
+    return {"plan": clean_plan, "needs_web_search": needs_web, "search_query": clean_q}
 
 
 # WEB SEARCH
@@ -377,6 +479,7 @@ def grade_documents_node(state: GraphState) -> GraphState:
             },
             fallback="RELEVANT",
             prompt_name="document_grader_prompt",
+            fallback_llm=router_llm,
         )
         is_relevant = "RELEVANT" in decision.upper() and "IRRELEVANT" not in decision.upper()
         s1_decisions["grade_documents"] = {
@@ -433,6 +536,27 @@ def router_node(state: GraphState) -> GraphState:
             "engine": "system_two_fallback",
             "task_type": task_type,
         }
+
+    # CRITICAL ROUTER OVERRIDE:
+    # If task_type was classified as 'creative' but the query is clearly factual/news/live/informational,
+    # prevent worker_creative from inventing fictional events!
+    if task_type == "creative":
+        req_lower = state["request"].lower()
+        factual_keywords = (
+            "news", "today", "live", "current", "latest", "recent",
+            "what is", "release", "released", "update", "happened",
+            "price", "weather", "who is", "when did", "explain", "model"
+        )
+        creative_explicit_keywords = ("story", "poem", "joke", "tale", "fiction", "song", "essay", "script", "creative writing", "rhyme")
+        is_factual = any(k in req_lower for k in factual_keywords)
+        is_explicit_creative = any(k in req_lower for k in creative_explicit_keywords)
+
+        if is_factual and not is_explicit_creative:
+            logger.info(f"Router Override: Query contains factual/news signals ('{state['request'][:50]}...'). Reassigning 'creative' -> 'general'.")
+            task_type = "general"
+        elif s1_decisions.get("router", {}).get("confidence", 1.0) < 0.60 and not is_explicit_creative:
+            logger.info(f"Router Override: Low confidence ({s1_decisions.get('router', {}).get('confidence', 0):.2f}) for creative without explicit story cues. Reassigning to 'general'.")
+            task_type = "general"
 
     # Automate temperature and top_p based on task_type
     temp = 0.7
@@ -496,6 +620,7 @@ def worker_agent_node(state: GraphState) -> GraphState:
         top_p=state.get("top_p"),
         max_tokens=state.get("max_tokens"),
         prompt_name=prompt_name,
+        fallback_llm=worker_general if llm != worker_general else None,
     )
     next_count = state.get("draft_generation_count", 0) + 1
     return {"draft": draft, "draft_generation_count": next_count}
@@ -510,6 +635,17 @@ def validation_node(state: GraphState) -> GraphState:
 
     context = (state.get("context") or "").strip()
     s1_decisions = dict(state.get("system_one_decisions") or {})
+    current_date = state.get("current_date") or datetime.now().strftime("%B %d, %Y")
+
+    # Step 0: Deterministic Code-Level Cutoff & Temporal Auditor (0ms, 100% resilient to LLM 503s)
+    audit = _audit_draft_for_cutoff(draft, user_request=state["request"], current_date=current_date)
+    if audit["has_cutoff"]:
+        logger.warning(f"[Validation Node] Deterministic audit caught cutoff: {audit['reason']}")
+        return {
+            "validation_pass": False,
+            "feedback": f"FAIL: CUTOFF_DETECTED ({audit['reason']})",
+            "system_one_decisions": s1_decisions,
+        }
 
     # 1. System-1 Universal Verification: Fast non-autoregressive hallucination check
     if context and context != "(No documents uploaded — answering from knowledge)":
@@ -539,16 +675,18 @@ def validation_node(state: GraphState) -> GraphState:
                     f"({laya_verif.get('confidence', 0.0):.2f}, {laya_verif.get('latency_ms')}ms)"
                 )
 
-    # 2. System-2 Deep Grounding & Cutoff Detection (Gemini 3.1 Flash-Lite)
+    # 2. System-2 Deep Grounding & Cutoff Detection (Gemini 3.1 Flash-Lite with multi-cloud fallback)
     result = _safe_llm_call(
         llm=validator_llm,
         variables={
             "request": state["request"][:2000],
             "context": context[:1500],
             "draft": draft[:2000],
+            "current_date": current_date,
         },
         fallback="PASS",
         prompt_name="validator_prompt",
+        fallback_llm=router_llm,
     )
 
     passed = "PASS" in result.upper() and "FAIL" not in result.upper()
@@ -587,6 +725,7 @@ def evaluation_node(state: GraphState) -> GraphState:
         variables={"request": state["request"][:2000], "draft": draft},
         fallback=draft,
         prompt_name="evaluator_prompt",
+        fallback_llm=worker_general,
     )
     return {"final_response": polished}
 
@@ -626,23 +765,13 @@ def route_after_grade_documents(state: GraphState) -> str:
 
 def route_after_worker(state: GraphState) -> str:
     draft = state.get("draft", "")
-    draft_lower = draft.lower()
+    current_date = state.get("current_date") or datetime.now().strftime("%B %d, %Y")
 
-    cutoff_indicators = (
-        "[needs_web_search",
-        "as of my knowledge cutoff",
-        "up to the middle of 2024",
-        "up to mid-2024",
-        "latest period for which i have reliable",
-        "i do not have real-time",
-        "as of my last update",
-        "cutoff of 2024",
-        "knowledge cutoff of",
-    )
-    # Check if worker triggered web search or admitted cutoff
-    if any(ind in draft_lower for ind in cutoff_indicators) and not state.get("web_search_completed"):
+    # Check if worker triggered web search or admitted cutoff or hallucinated old years
+    audit = _audit_draft_for_cutoff(draft, user_request=state["request"], current_date=current_date)
+    if audit["has_cutoff"] and not state.get("web_search_completed"):
         extracted_q = extract_search_query(draft, state["request"])
-        logger.info(f"Self-Correction: Worker hit cutoff/knowledge gap. Triggering web search with query: '{extracted_q}'")
+        logger.info(f"Self-Correction: Worker hit cutoff/knowledge gap ({audit['reason']}). Triggering web search with query: '{extracted_q}'")
         state["search_query"] = extracted_q
         return "web_search"
 
@@ -653,7 +782,9 @@ def route_after_validation(state: GraphState) -> str:
     feedback = state.get("feedback", "")
     # If validator caught a cutoff disclaimer and search hasn't run yet
     if "CUTOFF_DETECTED" in feedback and not state.get("web_search_completed"):
-        logger.info("Validator detected knowledge cutoff. Triggering web search.")
+        extracted_q = extract_search_query(feedback, state["request"])
+        logger.info(f"Validator detected knowledge cutoff ({feedback}). Triggering web search with query: '{extracted_q}'.")
+        state["search_query"] = extracted_q
         return "web_search"
 
     if state.get("validation_pass", True):
