@@ -567,6 +567,26 @@ def router_node(state: GraphState) -> GraphState:
             logger.info(f"Router Override: Low confidence ({s1_decisions.get('router', {}).get('confidence', 0):.2f}) for creative without explicit story cues. Reassigning to 'general'.")
             task_type = "general"
 
+    # Guardrail for 'coding':
+    # If task_type was classified as 'coding' but the user did NOT ask for code/programming/scripts,
+    # prevent worker_coding from generating unprompted Python scripts!
+    if task_type == "coding":
+        req_lower = state["request"].lower()
+        code_explicit_keywords = (
+            "code", "python", "script", "program", "function", "debug", "sql", "html",
+            "css", "javascript", "typescript", "c++", "java", "regex", "algorithm",
+            "implement", "write a", "syntax", "compile", "error in", "traceback",
+            "api call", "endpoint", "class", "method", "bug in", "fix my"
+        )
+        has_code_intent = any(k in req_lower for k in code_explicit_keywords) or ("```" in state["request"])
+        
+        factual_indicators = ("what is", "what are", "what r", "news", "today", "released", "came out", "explain", "overview", "compare", "summary", "which")
+        is_factual_question = any(k in req_lower for k in factual_indicators)
+
+        if not has_code_intent or (is_factual_question and not any(k in req_lower for k in ("write", "create", "implement", "build"))):
+            logger.info(f"Router Override: Query is factual inquiry ('{state['request'][:50]}...'), not a coding request. Reassigning 'coding' -> 'general'.")
+            task_type = "general"
+
     # Automate temperature and top_p based on task_type
     temp = 0.7
     top_p = 0.9
