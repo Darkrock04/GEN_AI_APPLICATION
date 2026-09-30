@@ -530,10 +530,11 @@ if prompt := st.chat_input("Message SPARK AI..."):
         # Pre-append empty assistant message
         st.session_state.messages.append({"role": "assistant", "content": "", "timestamp": "", "sources": []})
 
-        # Build history for API (last 10 messages, excluding the empty one)
+        # Build history for API (all previous conversation turns before current message)
         history_for_api = [
             {"role": m["role"], "content": m["content"]}
-            for m in st.session_state.messages[-11:-1]
+            for m in st.session_state.messages[:-2]
+            if m.get("content")
         ]
 
         payload = {

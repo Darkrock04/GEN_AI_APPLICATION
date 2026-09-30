@@ -274,6 +274,28 @@ def _audit_draft_for_cutoff(draft: str, user_request: str = "", current_date: st
                 "reason": "Draft references 2024 as current context for a live/present-day request.",
             }
 
+    # 3. Deflection / Cop-out check:
+    deflection_phrases = (
+        "methods to find the latest",
+        "ways to find the latest",
+        "search google news for",
+        "visit company press-release",
+        "academic pre-print servers",
+        "paste it here and i can break down",
+        "paste it here and i'll break down",
+        "how to get the real-time numbers right now",
+        "how to get the real-time numbers",
+        "if you have a smartphone",
+        "breezometer",
+        "install the app",
+    )
+    for phrase in deflection_phrases:
+        if phrase in draft_lower:
+            return {
+                "has_cutoff": True,
+                "reason": f"Draft deflected the user with self-search or app instructions: '{phrase}'",
+            }
+
     return {"has_cutoff": False, "reason": ""}
 
 
@@ -710,6 +732,7 @@ def validation_node(state: GraphState) -> GraphState:
         variables={
             "request": state["request"][:2000],
             "context": context[:1500],
+            "history": (state.get("history") or "None")[:2000],
             "draft": draft[:2000],
             "current_date": current_date,
         },
@@ -795,6 +818,12 @@ def route_after_web_search(state: GraphState) -> str:
 def route_after_grade_documents(state: GraphState) -> str:
     # If documents are irrelevant/missing and web search hasn't run yet, trigger web search
     if state.get("doc_relevance") == "irrelevant" and not state.get("web_search_completed"):
+        # Personal conversational history questions do not need web search
+        req_lower = state["request"].lower()
+        personal_cues = ("my name", "who am i", "what is my", "what did i", "my job", "my profession", "earlier", "remember")
+        if any(c in req_lower for c in personal_cues) and state.get("history") and state["history"] != "No previous history.":
+            logger.info("CRAG: Query refers to conversation history. Skipping web search.")
+            return "router"
         logger.info("CRAG: Retrieved context is irrelevant/missing. Routing to web_search for grounding.")
         return "web_search"
     return "router"
@@ -806,28 +835,16 @@ def route_after_worker(state: GraphState) -> str:
 
     # Check if worker triggered web search or admitted cutoff or hallucinated old years
     audit = _audit_draft_for_cutoff(draft, user_request=state["request"], current_date=current_date)
-    retry_count = state.get("search_retry_count", 0)
-    if audit["has_cutoff"] and retry_count < 1:
+    if audit["has_cutoff"] and not state.get("web_search_completed"):
         extracted_q = extract_search_query(draft, state["request"])
-        logger.info(f"Self-Correction: Worker hit cutoff/knowledge gap ({audit['reason']}). Triggering web search retry #{retry_count+1} with query: '{extracted_q}'")
+        logger.info(f"Self-Correction: Worker hit cutoff/knowledge gap ({audit['reason']}). Triggering web search with query: '{extracted_q}'")
         state["search_query"] = extracted_q
-        state["search_retry_count"] = retry_count + 1
         return "web_search"
 
     return "validation"
 
 
 def route_after_validation(state: GraphState) -> str:
-    feedback = state.get("feedback", "")
-    retry_count = state.get("search_retry_count", 0)
-    # If validator caught a cutoff disclaimer and search hasn't run retry yet
-    if "CUTOFF_DETECTED" in feedback and retry_count < 1:
-        extracted_q = extract_search_query(feedback, state["request"])
-        logger.info(f"Validator detected knowledge cutoff ({feedback}). Triggering web search retry #{retry_count+1} with query: '{extracted_q}'.")
-        state["search_query"] = extracted_q
-        state["search_retry_count"] = retry_count + 1
-        return "web_search"
-
     if state.get("validation_pass", True):
         return "evaluation"
     if state.get("draft_generation_count", 0) >= MAX_DRAFT_ATTEMPTS:
