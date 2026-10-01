@@ -3,9 +3,8 @@ title: SPARK AI
 emoji: ⚡
 colorFrom: purple
 colorTo: pink
-sdk: streamlit
-sdk_version: 1.35.0
-app_file: app.py
+sdk: docker
+app_port: 7860
 pinned: false
 license: mit
 short_description: Multi-Agent RAG with Multi-Cloud LLMs
