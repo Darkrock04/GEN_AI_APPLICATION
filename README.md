@@ -1,3 +1,16 @@
+---
+title: SPARK AI
+emoji: ⚡
+colorFrom: purple
+colorTo: pink
+sdk: streamlit
+sdk_version: 1.35.0
+app_file: app.py
+pinned: false
+license: mit
+short_description: Multi-Agent RAG with Multi-Cloud LLMs
+---
+
 # ⚡ SPARK AI — Multi-Agent RAG Application
 
 A production-grade, multi-agent AI assistant powered by a **Multi-Cloud Architecture** (Nvidia NIM, Google Gemini, and Ollama Cloud). Features intelligent task routing, document RAG, and quality validation — optimized for speed and low-latency local deployment.

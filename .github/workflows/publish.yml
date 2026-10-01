@@ -1,0 +1,36 @@
+name: Publish to Hugging Face Space
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    permissions:
+      id-token: write  # Required for Hugging Face OIDC token exchange
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Hugging Face CLI
+        run: |
+          curl -LsSf https://hf.co/cli/install.sh | bash
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Upload to Hugging Face Space via Trusted Publisher
+        env:
+          HF_OIDC_RESOURCE: spaces/Darkrock04/SPARK
+        run: |
+          hf upload Darkrock04/SPARK . . \
+            --repo-type space \
+            --exclude ".git/*" \
+            --exclude ".github/*" \
+            --exclude ".env*" \
+            --exclude "deploy/*" \
+            --exclude "gemini_explained/*" \
+            --commit-message "Deploy commit ${{ github.sha }} via Trusted Publisher"
