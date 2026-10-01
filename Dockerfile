@@ -19,6 +19,11 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # Copy the entire project with proper user permissions
 COPY --chown=user:user . .
 
+# Ensure data directories exist and non-root user has full read/write permissions
+RUN mkdir -p /home/user/app/chroma_db /home/user/app/data && \
+    chown -R user:user /home/user && \
+    chmod -R 775 /home/user
+
 # Switch to non-root user
 USER user
 ENV HOME=/home/user \

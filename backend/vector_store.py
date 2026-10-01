@@ -19,7 +19,14 @@ from backend.llm_factory import GEMINI_API_KEY
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-DB_DIR = os.path.join(os.path.dirname(__file__), "..", "chroma_db")
+DB_DIR = os.environ.get("CHROMA_DB_DIR") or os.path.join(os.path.dirname(__file__), "..", "chroma_db")
+try:
+    os.makedirs(DB_DIR, exist_ok=True)
+except (PermissionError, OSError) as _pe:
+    logger.warning(f"Could not create DB_DIR at '{DB_DIR}' ({_pe}). Falling back to '/tmp/chroma_db'.")
+    DB_DIR = "/tmp/chroma_db"
+    os.makedirs(DB_DIR, exist_ok=True)
+
 SUPPORTED_EXTENSIONS = {".pdf", ".txt"}
 MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024  # 10MB (HF free tier friendly)
 
@@ -38,11 +45,17 @@ def _get_embeddings():
 class VectorStoreManager:
     def __init__(self):
         """Initialize embeddings and connect to ChromaDB."""
+        global DB_DIR
         try:
             self.embedding_function = _get_embeddings()
-            os.makedirs(DB_DIR, exist_ok=True)
+            try:
+                os.makedirs(DB_DIR, exist_ok=True)
+            except (PermissionError, OSError) as _pe:
+                logger.warning(f"Permission denied for '{DB_DIR}', redirecting to '/tmp/chroma_db'.")
+                DB_DIR = "/tmp/chroma_db"
+                os.makedirs(DB_DIR, exist_ok=True)
             self.db = self._connect_chromadb("spark_session")
-            logger.info("VectorStoreManager initialized using Google Gemini embeddings.")
+            logger.info(f"VectorStoreManager initialized using Google Gemini embeddings at '{DB_DIR}'.")
         except Exception as e:
             logger.error(f"CRITICAL: VectorStoreManager init failed: {e}")
             raise RuntimeError(f"Could not initialize vector store: {e}")

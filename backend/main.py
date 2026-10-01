@@ -36,6 +36,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+DATA_DIR = os.environ.get("DATA_DIR") or os.path.join(os.path.dirname(__file__), "..", "data")
+try:
+    os.makedirs(DATA_DIR, exist_ok=True)
+except (PermissionError, OSError) as _pe:
+    logger.warning(f"Could not create DATA_DIR at '{DATA_DIR}' ({_pe}). Falling back to '/tmp/data'.")
+    DATA_DIR = "/tmp/data"
+    os.makedirs(DATA_DIR, exist_ok=True)
+
 
 # SESSION-LEVEL ANALYTICS TRACKER (Feature 12)
 class _Analytics:
@@ -229,11 +237,10 @@ async def upload_document(file: UploadFile = File(...)):
         size_mb = len(file_content) / (1024 * 1024)
         return DocumentUploadResponse(message=f"File too large ({size_mb:.1f}MB). Max is 10MB.", chunks_added=0)
 
-    data_dir = os.path.join(os.path.dirname(__file__), "..", "data")
-    file_path = os.path.join(data_dir, safe_filename)
+    file_path = os.path.join(DATA_DIR, safe_filename)
 
     try:
-        os.makedirs(data_dir, exist_ok=True)
+        os.makedirs(DATA_DIR, exist_ok=True)
         with open(file_path, "wb") as f:
             f.write(file_content)
         chunks = vector_store_manager.ingest_document(file_path)
@@ -275,9 +282,8 @@ async def delete_document(filename: str):
     safe_name = os.path.basename(filename)
     success = vector_store_manager.delete_document(safe_name)
     if success:
-        data_dir = os.path.join(os.path.dirname(__file__), "..", "data")
         try:
-            fpath = os.path.join(data_dir, safe_name)
+            fpath = os.path.join(DATA_DIR, safe_name)
             if os.path.exists(fpath):
                 os.remove(fpath)
         except Exception:
@@ -296,11 +302,10 @@ async def clear_session():
         errors.append(str(e))
 
     try:
-        data_dir = os.path.join(os.path.dirname(__file__), "..", "data")
-        if os.path.exists(data_dir):
-            for f in os.listdir(data_dir):
+        if os.path.exists(DATA_DIR):
+            for f in os.listdir(DATA_DIR):
                 try:
-                    os.remove(os.path.join(data_dir, f))
+                    os.remove(os.path.join(DATA_DIR, f))
                 except Exception:
                     pass
     except Exception as e:
